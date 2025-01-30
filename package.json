@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "node-telegram-bot-api": "^0.66.0",
+    "sqlite3": "^5.1.7",
+    "vk-io": "^4.9.1"
+  }
+}
