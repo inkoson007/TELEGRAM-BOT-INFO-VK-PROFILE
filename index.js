@@ -2,12 +2,17 @@ require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const { VK } = require("vk-io");
 const sqlite3 = require("sqlite3").verbose();
+const path = require('path');
+const fs = require('fs');
+const axios = require('axios');
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
   if (err) console.error("Ошибка подключения к БД:", err.message);
   else console.log("✅ Подключено к базе данных SQLite.");
 });
+
+console.log('-----> VK шпион V1.1 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -29,7 +34,7 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.0
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.1
 
 📝 Используйте /help для просмотра доступных команд.`);
 });
@@ -49,7 +54,7 @@ bot.onText(/\/help/, (msg) => {
     📌 /track <id> - ${escapeMarkdown("Добавить пользователя в отслеживание")}
     📌 /profile <id> - ${escapeMarkdown("Информация о профиле VK")}
     📌 /gprofile <id> - ${escapeMarkdown("Информация о группе VK")}
-    
+    📌 /info <id> - ${escapeMarkdown("Получить информацию о профиле в html")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
     `;
   
@@ -437,6 +442,182 @@ async function periodicTracking() {
   for (const vkId of users) {
     await startTracking(vkId);
   }
+}
+
+// 📌 команда info
+bot.onText(/\/info (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const vkId = match[1];  // Use vkId from the command input
+
+  async function getVkUserId(input) {
+    try {
+      const vkUser = await vk.api.users.get({ user_ids: input });
+      if (vkUser && vkUser.length > 0) {
+        return vkUser[0].id;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching VK user ID:", error);
+      return null;
+    }
+  }
+
+  function getPlatform(platformId) {
+    switch (platformId) {
+      case 1:
+        return 'Мобильное приложение';
+      case 2:
+        return 'Мобильная версия';
+      case 3:
+        return 'Десктопное приложение';
+      case 4:
+        return 'Веб-версия';
+      default:
+        return 'Неизвестно';
+    }
+  }
+
+  function getElapsedTime(lastSeenTime) {
+    const now = Date.now() / 1000;  // Current time in seconds
+    const diff = now - lastSeenTime; // Difference between current time and last seen time
+  
+    const minutes = Math.floor(diff / 60);
+    const hours = Math.floor(diff / 3600);
+    const days = Math.floor(diff / 86400);
+  
+    if (days > 0) {
+      return `${days} дн. назад`;
+    } else if (hours > 0) {
+      return `${hours} ч. назад`;
+    } else if (minutes > 0) {
+      return `${minutes} мин. назад`;
+    } else {
+      return 'Только что';
+    }
+  }
+
+  try {
+    const userId = await getVkUserId(vkId);  // Pass vkId here
+    if (!userId) {
+      return bot.sendMessage(chatId, '❌ Не удалось найти профиль.');
+    }
+
+    const profile = await vk.api.users.get({
+      user_ids: userId,
+      fields: 'photo_200, last_seen, counters, online, online_mobile, bdate, city, country, sex, status, education, home_town, followers_count'
+    });
+
+    if (!profile.length) {
+      return bot.sendMessage(chatId, '❌ Не удалось получить информацию.');
+    }
+
+    const user = profile[0];
+    const lastSeenTime = user.last_seen ? new Date(user.last_seen.time * 1000).toLocaleString() : 'Неизвестно';
+    const lastSeenPlatform = getPlatform(user.last_seen?.platform);
+    const elapsedTime = user.last_seen ? getElapsedTime(user.last_seen.time) : 'Неизвестно';
+
+    const profilePic = user.photo_200 || '';
+    const city = user.city ? user.city.title : 'Не указано';
+    const country = user.country ? user.country.title : 'Не указано';
+    const sex = user.sex === 1 ? 'Женский' : user.sex === 2 ? 'Мужской' : 'Не указан';
+    const education = user.education ? `${user.education.university_name}, ${user.education.faculty_name}, ${user.education.chair_name}` : 'Не указано';
+    const homeTown = user.home_town || 'Не указано';
+    const status = user.status || 'Нет статуса';
+    const birthday = user.bdate || 'Не указана';
+    const followers = user.counters?.followers || 0;  // Followers count
+    const friends = user.counters?.friends || 0;  // Friends count
+
+    const htmlContent = generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends);
+    const filePath = path.join(__dirname, `profile_${user.id}.html`);
+
+    fs.writeFileSync(filePath, htmlContent);
+
+    bot.sendDocument(chatId, filePath, { caption: "🔗 Откройте этот файл в браузере" }).then(() => {
+      fs.unlinkSync(filePath);
+    });
+
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, '❌ Ошибка при получении данных.');
+  }
+});
+
+function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends) {
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профиль ВКонтакте</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+      background-size: 400% 400%; 
+      animation: gradientAnimation 15s ease infinite; 
+      text-align: center; 
+      margin: 0; 
+      padding: 0; 
+      min-height: 100vh;
+      color: white; /* Белый текст */
+    }
+    @keyframes gradientAnimation { 
+      0% { background-position: 0% 50%; } 
+      50% { background-position: 100% 50%; } 
+      100% { background-position: 0% 50%; } 
+    }
+    .container { 
+      width: 300px; 
+      background: rgba(0, 0, 0, 0.8); 
+      padding: 15px; 
+      margin: 50px auto; 
+      border-radius: 10px; 
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+    }
+    .avatar { 
+      width: 80px; 
+      height: 80px; 
+      border-radius: 50%; 
+      margin-bottom: 10px; 
+    }
+    .info { 
+      text-align: left; 
+      font-size: 14px; 
+    }
+    footer { 
+      position: fixed; 
+      bottom: 10px; 
+      width: 100%; 
+      text-align: center; 
+      font-size: 12px; 
+      color: white; 
+      background-color: rgba(0, 0, 0, 0.5); 
+      padding: 5px 0; 
+    }
+    footer a { color: #fffb00; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="${profilePic}" class="avatar" alt="Фото профиля">
+    <h2>${user.first_name} ${user.last_name}</h2>
+    <div class="info">
+      <p><b>Последний вход:</b> ${lastSeenTime} (${elapsedTime})</p>
+      <p><b>Устройство:</b> ${lastSeenPlatform}</p>
+      <p><b>Город:</b> ${city}</p>
+      <p><b>Страна:</b> ${country}</p>
+      <p><b>Пол:</b> ${sex}</p>
+      <p><b>Дата рождения:</b> ${birthday}</p>
+      <p><b>Статус:</b> ${status}</p>
+      <p><b>Родной город:</b> ${homeTown}</p>
+      <p><b>Образование:</b> ${education}</p>
+      <p><b>Друзья:</b> ${friends}</p>
+      <p><b>Подписчики:</b> ${followers}</p>
+    </div>
+  </div>
+  <footer>Developer INK</footer>
+</body>
+</html>`; 
 }
 
 // Запуск периодической проверки изменений каждые 10 секунд
