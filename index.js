@@ -5,6 +5,8 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { createCanvas, loadImage } = require("canvas");
+
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
@@ -12,7 +14,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.1 <-----');
+console.log('-----> VK шпион V1.2 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -34,7 +36,7 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.1
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.2
 
 📝 Используйте /help для просмотра доступных команд.`);
 });
@@ -55,6 +57,8 @@ bot.onText(/\/help/, (msg) => {
     📌 /profile <id> - ${escapeMarkdown("Информация о профиле VK")}
     📌 /gprofile <id> - ${escapeMarkdown("Информация о группе VK")}
     📌 /info <id> - ${escapeMarkdown("Получить информацию о профиле в html")}
+    📌 /photo <id> - ${escapeMarkdown("Получить информацию о профиле в картинке")}
+    📌 /update - ${escapeMarkdown("Информация об обновлении")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
     `;
   
@@ -619,6 +623,200 @@ function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedT
 </body>
 </html>`; 
 }
+
+//📌 команда photo
+bot.onText(/\/photo (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const vkId = match[1];
+
+  async function getVkUserId(input) {
+    try {
+      const vkUser = await vk.api.users.get({ user_ids: input });
+      if (vkUser && vkUser.length > 0) {
+        return vkUser[0].id;
+      }
+      return null;
+    } catch (error) {
+      console.error("Ошибка при получении ID пользователя VK:", error);
+      return null;
+    }
+  }
+
+  function getElapsedTime(lastSeenTime) {
+    const now = Date.now() / 1000;
+    const diff = now - lastSeenTime;
+
+    const minutes = Math.floor(diff / 60);
+    const hours = Math.floor(diff / 3600);
+    const days = Math.floor(diff / 86400);
+
+    if (days > 0) return `${days} дн. назад`;
+    if (hours > 0) return `${hours} ч. назад`;
+    if (minutes > 0) return `${minutes} мин. назад`;
+    return "Только что";
+  }
+
+  try {
+    const userId = await getVkUserId(vkId);
+    if (!userId) {
+      return bot.sendMessage(chatId, "❌ Не удалось найти профиль.");
+    }
+
+    const profile = await vk.api.users.get({
+      user_ids: userId,
+      fields:
+        "photo_max_orig,last_seen,counters,followers_count,city,verified,status,site,sex,relation,bdate,has_mobile,is_closed,is_premium,wall_comments,blacklisted",
+    });
+
+    if (!profile.length) {
+      return bot.sendMessage(chatId, "❌ Не удалось получить данные.");
+    }
+
+    const user = profile[0];
+    const avatarUrl = user.photo_max_orig;
+    const lastSeenTime = user.last_seen ? getElapsedTime(user.last_seen.time) : "Неизвестно";
+    const friendsCount = user.counters?.friends || 0;
+    const followersCount = user.counters?.followers || 0;
+    const city = user.city ? user.city.title : "Не указан";
+    const verified = user.verified ? "✅ Да" : "❌ Нет";
+    const online = user.online ? "🟢 Онлайн" : "🔴 Оффлайн";
+    const device = user.last_seen ? `ID ${user.last_seen.platform}` : "Неизвестно";
+    const status = user.status || "Не указан";
+    const sex = user.sex === 1 ? "👩 Женский" : user.sex === 2 ? "👨 Мужской" : "Не указан";
+    const bdate = user.bdate || "Не указана";
+    const hasMobile = user.has_mobile ? "✅ Да" : "❌ Нет";
+    const isClosed = user.is_closed ? "🔒 Закрытый" : "🔓 Открытый";
+    const wallComments = user.wall_comments ? "✅ Разрешены" : "❌ Запрещены";
+    const blacklisted = user.blacklisted ? "✅ В ЧС" : "❌ Нет";
+    const site = user.site || "Не указан";
+    const relation = user.relation || "Не указаны";
+    const photosCount = user.counters?.photos || 0;
+    const videosCount = user.counters?.videos || 0;
+    const giftsCount = user.counters?.gifts || 0;
+    const wallPostsCount = user.counters?.posts || 0;
+
+    const canvas = createCanvas(600, 750); // Увеличена высота
+    const ctx = canvas.getContext("2d");
+
+    // Заливка фона
+    ctx.fillStyle = "#282c34";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Загружаем аватарку
+    const avatar = await loadImage(avatarUrl);
+    ctx.drawImage(avatar, 20, 20, 120, 120);
+
+    // Имя пользователя
+    ctx.fillStyle = "white";
+    ctx.font = "bold 24px Arial";
+    ctx.fillText(`${user.first_name} ${user.last_name}`, 160, 50);
+
+    // Данные профиля
+    ctx.font = "18px Arial";
+    let y = 90;
+    const lineSpacing = 30;
+
+    const userData = [
+      `🏙 Город: ${city}`,
+      `🔹 Верифицирован: ${verified}`,
+      `⏳ Последний вход: ${lastSeenTime}`,
+      `📱 Устройство: ${device}`,
+      `🏷 Статус: ${status}`,
+      `🔵 Онлайн: ${online}`,
+      `👥 Пол: ${sex}`,
+      `🎂 Дата рождения: ${bdate}`,
+      `📱 Привязан телефон: ${hasMobile}`,
+      `🔑 Подтверждение входа: ${hasMobile}`,
+      `📧 Привязана почта: ${hasMobile}`,
+      `🚫 Черный список: ${blacklisted}`,
+      `🔗 Сайт: ${site}`,
+      `🔒 Приватность профиля: ${isClosed}`,
+      `💬 Комментарии на стене: ${wallComments}`,
+      `❤️ Отношения: ${relation}`,
+      `🎥 Видео: ${videosCount}`,
+      `📸 Фотографии: ${photosCount}`,
+      `🎁 Подарки: ${giftsCount}`,
+      `📝 Записи на стене: ${wallPostsCount}`,
+      `👫 Друзья: ${friendsCount}`,
+      `👥 Подписчики: ${followersCount}`,
+    ];
+
+    userData.forEach((text) => {
+      ctx.fillText(text, 160, y);
+      y += lineSpacing;
+    });
+
+    // Добавляем надпись "Developer by INK" внизу
+    ctx.fillStyle = "gray";
+    ctx.font = "italic 16px Arial";
+    ctx.fillText("Developer by INK", canvas.width - 180, canvas.height - 20);
+
+    // Сохранение изображения
+    const filePath = path.join(__dirname, `profile_${user.id}.png`);
+    const out = fs.createWriteStream(filePath);
+    const stream = canvas.createPNGStream();
+    stream.pipe(out);
+
+    out.on("finish", () => {
+      bot.sendPhoto(chatId, filePath, {
+        caption: `📜 Информация о пользователе [${user.first_name} ${user.last_name}](https://vk.com/id${userId})`,
+        parse_mode: "Markdown",
+      }).then(() => fs.unlinkSync(filePath));
+    });
+
+  } catch (error) {
+    console.error("Ошибка:", error);
+    bot.sendMessage(chatId, "❌ Ошибка при получении данных.");
+  }
+});
+
+//📌 команда update
+bot.onText(/\/update/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Создаем холст
+  const canvas = createCanvas(600, 400);
+  const ctx = canvas.getContext("2d");
+
+  // Задний фон
+  ctx.fillStyle = "#282c34";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Заголовок "VK Шпион v1.2"
+  ctx.fillStyle = "white";
+  ctx.font = "bold 30px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("VK Шпион v1.2", canvas.width / 2, 80);
+
+  // Блок описания обновления
+  ctx.fillStyle = "#444";
+  ctx.fillRect(50, 120, 500, 180);
+
+  // Текст описания обновления
+  ctx.fillStyle = "white";
+  ctx.font = "18px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Добавлена информация о профиле в картинке", canvas.width / 2, 160);
+  ctx.fillText("Добавлено описание обновления", canvas.width / 2, 200);
+
+  // Подпись разработчика
+  ctx.fillStyle = "#999";
+  ctx.font = "16px Arial";
+  ctx.fillText("Developer by INK", canvas.width / 2, 350);
+
+  // Сохранение изображения
+  const filePath = path.join(__dirname, "update_info.png");
+  const out = fs.createWriteStream(filePath);
+  const stream = canvas.createPNGStream();
+  stream.pipe(out);
+
+  out.on("finish", () => {
+    bot.sendPhoto(chatId, filePath, {
+      caption: "🆕 Обновление VK Шпион v1.2",
+    }).then(() => fs.unlinkSync(filePath));
+  });
+});
+
 
 // Запуск периодической проверки изменений каждые 10 секунд
 setInterval(periodicTracking, 10 * 1000); // 10 секунд
