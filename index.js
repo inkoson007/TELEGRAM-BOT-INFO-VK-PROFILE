@@ -6,7 +6,11 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const { createCanvas, loadImage } = require("canvas");
+const { exec } = require('child_process');
+const os = require('os');
+const moment = require('moment');
 
+const allowedAdmins = [1364548192];  // Массив с ID пользователей, которым разрешено использовать команду
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
@@ -14,7 +18,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.2 <-----');
+console.log('-----> VK шпион V1.3 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -36,7 +40,7 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.2
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.3
 
 📝 Используйте /help для просмотра доступных команд.`);
 });
@@ -58,6 +62,10 @@ bot.onText(/\/help/, (msg) => {
     📌 /gprofile <id> - ${escapeMarkdown("Информация о группе VK")}
     📌 /info <id> - ${escapeMarkdown("Получить информацию о профиле в html")}
     📌 /photo <id> - ${escapeMarkdown("Получить информацию о профиле в картинке")}
+    📌 /друзья <id> - ${escapeMarkdown("Получить информацию о друзьях")}
+    📌 /подписчики <id> - ${escapeMarkdown("Получить информацию о подписчиках")}
+    📌 /подписки <id> - ${escapeMarkdown("Получить информацию о подписчиках")}
+    📌 /settings - ${escapeMarkdown("Настройки бота")}
     📌 /update - ${escapeMarkdown("Информация об обновлении")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
     `;
@@ -252,6 +260,11 @@ bot.onText(/\/track (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const vkId = match[1];
 
+ // Проверка, что команду может выполнить только администратор
+ if (!allowedAdmins.includes(chatId)) {
+  return bot.sendMessage(chatId, '❌ У вас нет прав для использования этой команды.');
+}
+
   db.get("SELECT * FROM tracked_users WHERE vk_id = ?", [vkId], (err, row) => {
     if (err) {
       return bot.sendMessage(chatId, "⚠ Ошибка при добавлении пользователя.");
@@ -265,12 +278,12 @@ bot.onText(/\/track (\d+)/, (msg, match) => {
       if (err) {
         return bot.sendMessage(chatId, "⚠ Ошибка при добавлении в базу.");
       }
-
+    
       // Уведомление о добавлении в отслеживание
       bot.sendMessage(chatId, "✅ Пользователь добавлен в отслеживание.");
       
       // Старт отслеживания изменений
-      startTracking(vkId);
+      startTracking(vkId)
     });
   });
 });
@@ -624,6 +637,395 @@ function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedT
 </html>`; 
 }
 
+//📌 команда /друзья 
+bot.onText(/\/друзья (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const vkId = match[1];  // Извлекаем vkId из команды
+
+  async function getVkUserId(input) {
+    try {
+      const vkUser = await vk.api.users.get({ user_ids: input });
+      if (vkUser && vkUser.length > 0) {
+        return vkUser[0].id;  // Возвращаем id пользователя
+      }
+      return null;
+    } catch (error) {
+      console.error("Ошибка при получении данных пользователя:", error);
+      return null;
+    }
+  }
+
+  // Получаем id пользователя ВКонтакте
+  const userId = await getVkUserId(vkId);
+  if (!userId) {
+    return bot.sendMessage(chatId, 'Не удалось найти пользователя или профиль закрыт.');
+  }
+
+  try {
+    // Запрос к API ВКонтакте для получения списка друзей
+    const response = await vk.api.friends.get({
+      user_id: userId,
+      order: 'name',
+      fields: 'first_name,last_name,photo_100',
+    });
+
+    const friends = response.items || [];
+    if (friends.length === 0) {
+      return bot.sendMessage(chatId, 'У пользователя нет друзей или профиль закрыт.');
+    }
+
+    // Генерация HTML для списка друзей
+    let friendsHtml = '';
+    friends.forEach(friend => {
+      friendsHtml += `<div class="friend">
+          <img src="${friend.photo_100}" class="avatar" alt="Фото профиля">
+          <p>${friend.first_name} ${friend.last_name}</p>
+      </div>`;
+    });
+
+    // Генерация полного HTML-документа
+    const htmlContent = `<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Список друзей ВКонтакте</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+          background-size: 400% 400%; 
+          animation: gradientAnimation 15s ease infinite; 
+          text-align: center; 
+          margin: 0; 
+          padding: 0; 
+          min-height: 100vh;
+          color: white; /* Белый текст */
+        }
+        @keyframes gradientAnimation { 
+          0% { background-position: 0% 50%; } 
+          50% { background-position: 100% 50%; } 
+          100% { background-position: 0% 50%; } 
+        }
+        .container { 
+          width: 300px; 
+          background: rgba(0, 0, 0, 0.8); 
+          padding: 15px; 
+          margin: 50px auto; 
+          border-radius: 10px; 
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+        }
+        .friend { 
+          margin-bottom: 10px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+        }
+        .avatar { 
+          width: 50px; 
+          height: 50px; 
+          border-radius: 50%; 
+          margin-right: 10px; 
+        }
+        .friend-info { 
+          text-align: left; 
+          font-size: 14px; 
+        }
+        footer { 
+          position: fixed; 
+          bottom: 10px; 
+          width: 100%; 
+          text-align: center; 
+          font-size: 12px; 
+          color: white; 
+          background-color: rgba(0, 0, 0, 0.5); 
+          padding: 5px 0; 
+        }
+        footer a { color: #fffb00; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Друзья пользователя</h2>
+        ${friendsHtml}
+      </div>
+      <footer>Developer INK</footer>
+    </body>
+    </html>`;
+
+    // Сохранение HTML в файл
+    const filePath = `friends_${userId}.html`;
+    fs.writeFileSync(filePath, htmlContent);
+
+    // Отправка файла в Telegram
+    await bot.sendDocument(chatId, filePath, { caption: 'Вот список друзей:' });
+
+    // Удаление файла после отправки
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, 'Ошибка при получении списка друзей. Возможно, профиль закрыт или ID указан неверно.');
+  }
+});
+
+//📌 команда /подписчики 
+bot.onText(/\/подписчики (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const vkId = match[1];  // Извлекаем vkId из команды
+
+  async function getVkUserId(input) {
+    try {
+      const vkUser = await vk.api.users.get({ user_ids: input });
+      if (vkUser && vkUser.length > 0) {
+        return vkUser[0].id;  // Возвращаем id пользователя
+      }
+      return null;
+    } catch (error) {
+      console.error("Ошибка при получении данных пользователя:", error);
+      return null;
+    }
+  }
+
+  // Получаем id пользователя ВКонтакте
+  const userId = await getVkUserId(vkId);
+  if (!userId) {
+    return bot.sendMessage(chatId, 'Не удалось найти пользователя или профиль закрыт.');
+  }
+
+  try {
+    // Запрос к API ВКонтакте для получения списка подписчиков пользователя
+    const response = await vk.api.users.getFollowers({
+      user_id: userId,
+      count: 100,  // Количество подписчиков, по умолчанию до 100
+      fields: 'first_name,last_name,photo_100',  // Поля для каждого подписчика
+    });
+
+    const followers = response.items || [];
+    if (followers.length === 0) {
+      return bot.sendMessage(chatId, 'У пользователя нет подписчиков или профиль закрыт.');
+    }
+
+    // Генерация HTML для списка подписчиков
+    let followersHtml = '';
+    followers.forEach(follower => {
+      followersHtml += `<div class="follower">
+          <img src="${follower.photo_100}" class="avatar" alt="Фото профиля">
+          <p>${follower.first_name} ${follower.last_name}</p>
+      </div>`;
+    });
+
+    // Генерация полного HTML-документа
+    const htmlContent = `<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Список подписчиков ВКонтакте</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+          background-size: 400% 400%; 
+          animation: gradientAnimation 15s ease infinite; 
+          text-align: center; 
+          margin: 0; 
+          padding: 0; 
+          min-height: 100vh;
+          color: white; /* Белый текст */
+        }
+        @keyframes gradientAnimation { 
+          0% { background-position: 0% 50%; } 
+          50% { background-position: 100% 50%; } 
+          100% { background-position: 0% 50%; } 
+        }
+        .container { 
+          width: 300px; 
+          background: rgba(0, 0, 0, 0.8); 
+          padding: 15px; 
+          margin: 50px auto; 
+          border-radius: 10px; 
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+        }
+        .follower { 
+          margin-bottom: 10px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+        }
+        .avatar { 
+          width: 50px; 
+          height: 50px; 
+          border-radius: 50%; 
+          margin-right: 10px; 
+        }
+        .follower-info { 
+          text-align: left; 
+          font-size: 14px; 
+        }
+        footer { 
+          position: fixed; 
+          bottom: 10px; 
+          width: 100%; 
+          text-align: center; 
+          font-size: 12px; 
+          color: white; 
+          background-color: rgba(0, 0, 0, 0.5); 
+          padding: 5px 0; 
+        }
+        footer a { color: #fffb00; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Подписчики пользователя</h2>
+        ${followersHtml}
+      </div>
+      <footer>Developer INK</footer>
+    </body>
+    </html>`;
+
+    // Сохранение HTML в файл
+    const filePath = `followers_${userId}.html`;
+    fs.writeFileSync(filePath, htmlContent);
+
+    // Отправка файла в Telegram
+    await bot.sendDocument(chatId, filePath, { caption: 'Вот список подписчиков:' });
+
+    // Удаление файла после отправки
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, 'Ошибка при получении списка подписчиков. Возможно, профиль закрыт или ID указан неверно.');
+  }
+});
+
+//📌 команда /подписки 
+bot.onText(/\/подписки (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const vkId = match[1];  // Извлекаем vkId из команды
+
+  async function getVkUserId(input) {
+    try {
+      const vkUser = await vk.api.users.get({ user_ids: input });
+      if (vkUser && vkUser.length > 0) {
+        return vkUser[0].id;  // Возвращаем id пользователя
+      }
+      return null;
+    } catch (error) {
+      console.error("Ошибка при получении данных пользователя:", error);
+      return null;
+    }
+  }
+
+  // Получаем id пользователя ВКонтакте
+  const userId = await getVkUserId(vkId);
+  if (!userId) {
+    return bot.sendMessage(chatId, 'Не удалось найти пользователя или профиль закрыт.');
+  }
+
+  try {
+    // Запрос к API ВКонтакте для получения списка подписок
+    const response = await vk.api.users.getSubscriptions({
+      user_id: userId,
+      extended: 1,  // Расширенные данные о подписках
+      fields: 'name,photo_100',  // Дополнительные данные о сообществе
+    });
+
+    const subscriptions = response.items || [];
+    if (subscriptions.length === 0) {
+      return bot.sendMessage(chatId, 'У пользователя нет подписок или профиль закрыт.');
+    }
+
+    // Генерация HTML для списка подписок
+    let subscriptionsHtml = '';
+    subscriptions.forEach(subscriber => {
+      subscriptionsHtml += `<div class="subscription">
+          <img src="${subscriber.photo_100}" class="avatar" alt="Фото сообщества">
+          <p>${subscriber.name}</p>
+      </div>`;
+    });
+
+    // Генерация полного HTML-документа
+    const htmlContent = `<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Список подписок пользователя ВКонтакте</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+          background-size: 400% 400%; 
+          animation: gradientAnimation 15s ease infinite; 
+          text-align: center; 
+          margin: 0; 
+          padding: 0; 
+          min-height: 100vh;
+          color: white; /* Белый текст */
+        }
+        @keyframes gradientAnimation { 
+          0% { background-position: 0% 50%; } 
+          50% { background-position: 100% 50%; } 
+          100% { background-position: 0% 50%; } 
+        }
+        .container { 
+          width: 300px; 
+          background: rgba(0, 0, 0, 0.8); 
+          padding: 15px; 
+          margin: 50px auto; 
+          border-radius: 10px; 
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+        }
+        .subscription { 
+          margin-bottom: 10px; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center;
+        }
+        .avatar { 
+          width: 50px; 
+          height: 50px; 
+          border-radius: 50%; 
+          margin-right: 10px; 
+        }
+        footer { 
+          position: fixed; 
+          bottom: 10px; 
+          width: 100%; 
+          text-align: center; 
+          font-size: 12px; 
+          color: white; 
+          background-color: rgba(0, 0, 0, 0.5); 
+          padding: 5px 0; 
+        }
+        footer a { color: #fffb00; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Подписки пользователя</h2>
+        ${subscriptionsHtml}
+      </div>
+      <footer>Developer INK</footer>
+    </body>
+    </html>`;
+
+    // Сохранение HTML в файл
+    const filePath = `subscriptions_${userId}.html`;
+    fs.writeFileSync(filePath, htmlContent);
+
+    // Отправка файла в Telegram
+    await bot.sendDocument(chatId, filePath, { caption: 'Вот список подписок пользователя:' });
+
+    // Удаление файла после отправки
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, 'Ошибка при получении списка подписок. Возможно, профиль закрыт или ID указан неверно.');
+  }
+});
+
 //📌 команда photo
 bot.onText(/\/photo (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -770,6 +1172,104 @@ bot.onText(/\/photo (.+)/, async (msg, match) => {
   }
 });
 
+//📌 команда settings
+// Функция для получения информации о пользователе ВКонтакте
+async function getVkUserInfo() {
+  try {
+    const response = await vk.api.users.get({ access_token: process.env.VK_ACCESS_TOKEN });
+    return response[0]; // Возвращаем данные о пользователе
+  } catch (error) {
+    console.error('Ошибка при получении данных о пользователе ВКонтакте:', error);
+    return null;
+  }
+}
+
+// Функция для проверки действительности токена ВКонтакте
+async function checkVkToken() {
+  try {
+    const response = await axios.get('https://api.vk.com/method/users.get', {
+      params: {
+        access_token: process.env.VK_ACCESS_TOKEN,  // Токен ВКонтакте
+        v: '5.131',  // Версия API ВКонтакте
+      },
+    });
+
+    if (response.data && response.data.response && response.data.response.length > 0) {
+      return true;  // Токен действителен
+    } else {
+      return false;  // Токен не действителен
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке токена:', error);
+    return false;  // Токен не действителен
+  }
+}
+
+// Основной обработчик для команды /settings
+bot.onText(/\/settings/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Проверка, что команду может выполнить только администратор
+  if (!allowedAdmins.includes(chatId)) {
+    return bot.sendMessage(chatId, '❌ У вас нет прав для использования этой команды.');
+  }
+
+  const uptime = moment.duration(process.uptime(), 'seconds').humanize();  // Время работы бота
+  const vkUserInfo = await getVkUserInfo();
+  const vkTokenValid = await checkVkToken() ? "✅ Токен ВКонтакте действителен" : "❌ Токен ВКонтакте не действителен";
+
+  const settingsMessage = `
+    🔧 **Настройки бота**:
+    - **Время работы**: ${uptime}
+    - **Владелец токена (ВКонтакте)**: ${vkUserInfo ? vkUserInfo.first_name + " " + vkUserInfo.last_name : "Не удалось получить данные"}
+    - **Статус токена ВКонтакте**: ${vkTokenValid}
+  `;
+
+  // Создание кнопок для перезапуска бота и проверки токена
+  const options = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "✅ Перезапустить бота", callback_data: 'restart' }],
+        [{ text: "🔍 Проверить токен ВКонтакте", callback_data: 'check_token' }]
+      ]
+    }
+  };
+
+  // Отправляем информацию в чат
+  bot.sendMessage(chatId, settingsMessage, options);
+});
+
+// Обработка нажатий на кнопки
+bot.on('callback_query', async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id;
+  const data = callbackQuery.data;
+
+  if (data === 'restart') {
+    // Перезапуск бота
+    bot.sendMessage(chatId, '⚙️ Бот перезапускается...');
+    exec('node index.js', (error, stdout, stderr) => {
+      if (error) {
+        return bot.sendMessage(chatId, `❌ Ошибка перезапуска: ${error.message}`);
+      }
+      if (stderr) {
+        return bot.sendMessage(chatId, `❌ Ошибка: ${stderr}`);
+      }
+      bot.sendMessage(chatId, '✅ Бот перезапущен успешно!');
+      process.exit();  // Завершаем текущий процесс
+    });
+  }
+
+  if (data === 'check_token') {
+    // Проверка токена ВКонтакте
+    const vkTokenValid = await checkVkToken() ? "✅ Токен ВКонтакте действителен" : "❌ Токен ВКонтакте не действителен";
+    bot.sendMessage(chatId, `Статус токена ВКонтакте: ${vkTokenValid}`);
+  }
+
+  // Ответ на запрос
+  bot.answerCallbackQuery(callbackQuery.id);
+});
+
+
 //📌 команда update
 bot.onText(/\/update/, async (msg) => {
   const chatId = msg.chat.id;
@@ -782,11 +1282,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.2"
+  // Заголовок "VK Шпион v1.3"
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.2", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.3", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -796,8 +1296,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Добавлена информация о профиле в картинке", canvas.width / 2, 160);
-  ctx.fillText("Добавлено описание обновления", canvas.width / 2, 200);
+  ctx.fillText("Добавили больше команд на получение информации !", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -812,7 +1311,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.2",
+      caption: "🆕 Обновление VK Шпион v1.3",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
