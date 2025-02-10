@@ -9,6 +9,8 @@ const { createCanvas, loadImage } = require("canvas");
 const { exec } = require('child_process');
 const os = require('os');
 const moment = require('moment');
+const osu = require('os-utils');
+
 
 const allowedAdmins = [1364548192];  // Массив с ID пользователей, которым разрешено использовать команду
 
@@ -18,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.3 <-----');
+console.log('-----> VK шпион V1.4 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -59,12 +61,16 @@ bot.onText(/\/help/, (msg) => {
     📌 /help - ${escapeMarkdown("Список команд")}
     📌 /track <id> - ${escapeMarkdown("Добавить пользователя в отслеживание")}
     📌 /profile <id> - ${escapeMarkdown("Информация о профиле VK")}
-    📌 /gprofile <id> - ${escapeMarkdown("Информация о группе VK")}
+    📌 /gprofile <id или ссылка> - ${escapeMarkdown("Информация о группе VK")}
     📌 /info <id> - ${escapeMarkdown("Получить информацию о профиле в html")}
+    📌 /ginfo <id или ссылка> - ${escapeMarkdown("Получить информацию о группе в html")}
     📌 /photo <id> - ${escapeMarkdown("Получить информацию о профиле в картинке")}
     📌 /друзья <id> - ${escapeMarkdown("Получить информацию о друзьях")}
     📌 /подписчики <id> - ${escapeMarkdown("Получить информацию о подписчиках")}
     📌 /подписки <id> - ${escapeMarkdown("Получить информацию о подписчиках")}
+    📌 /участники <ссылка или id> - ${escapeMarkdown("Получить список участников группы")}
+    📌 /id <ссылка на профиль> - ${escapeMarkdown("Получить id профиля")}
+    📌 /gid <ссылка на группу> - ${escapeMarkdown("Получить id группы")}
     📌 /settings - ${escapeMarkdown("Настройки бота")}
     📌 /update - ${escapeMarkdown("Информация об обновлении")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
@@ -87,7 +93,7 @@ bot.onText(/\/profile (.+)/, async (msg, match) => {
   try {
     const response = await vk.api.users.get({
       user_ids: vkId,
-      fields: "photo_max_orig,city,verified,last_seen,status,online,sex,bdate,about,counters,has_mobile,blacklisted,site,relation,relation_partner,is_closed,career,military,photo_id,is_premium,wall_comments"
+      fields: "photo_max_orig,city,verified,last_seen,status,online,sex,bdate,about,counters,has_mobile,blacklisted,site,relation,relation_partner,is_closed,career,military,photo_id,is_premium,wall_comments,cover"
     });
 
     if (!response.length) return bot.sendMessage(chatId, "❌ Профиль не найден.");
@@ -174,8 +180,10 @@ bot.onText(/\/profile (.+)/, async (msg, match) => {
 👥 *Подписчики:* ${followersCount}
 📸 *Аватар:*`;
 
-    // Отправка аватара как фото
-    bot.sendPhoto(chatId, user.photo_max_orig, {
+    // Отправка аватара и обложки как фото
+    const cover = user.cover ? user.cover.photo_800 : null; // Получаем обложку, если она есть
+    const media = cover || user.photo_max_orig; // Если есть обложка, отправляем её, иначе аватар
+    bot.sendPhoto(chatId, media, {
       caption: profileInfo, 
       parse_mode: "Markdown"
     });
@@ -185,73 +193,104 @@ bot.onText(/\/profile (.+)/, async (msg, match) => {
   }
 });
 
+// 📌 Команда /gprofile 
 bot.onText(/\/gprofile (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
-  let groupId = match[1];
+  let groupId = match[1].trim(); // Убираем лишние пробелы
 
-  // Если введена ссылка на сообщество, извлекаем ID
-  if (groupId.includes("vk.com/")) {
-    const urlParts = groupId.split("/");
-    groupId = urlParts[urlParts.length - 1]; // Берем последнее значение после слэша
-  }
+  const vkUrlPattern = /(?:https?:\/\/)?(?:www\.)?vk\.com\/(club|public|event)?(\d+|[a-zA-Z0-9_.-]+)/;
+  const matchResult = groupId.match(vkUrlPattern);
 
-  // Проверка на пустое значение groupId
-  if (!groupId) {
-    return bot.sendMessage(chatId, "❌ Пожалуйста, укажите правильный ID или ссылку на сообщество.");
+  if (matchResult) {
+    groupId = matchResult[2] || matchResult[1];
+    
+    if (isNaN(groupId)) {
+      try {
+        const resolveResponse = await axios.get("https://api.vk.com/method/utils.resolveScreenName", {
+          params: {
+            screen_name: groupId,
+            access_token: process.env.VK_ACCESS_TOKEN,
+            v: "5.199",
+          },
+        });
+
+        if (resolveResponse.data.error) {
+          return bot.sendMessage(chatId, `❌ Ошибка VK API: ${resolveResponse.data.error.error_msg}`);
+        }
+
+        const resolved = resolveResponse.data.response;
+        if (!resolved || resolved.type !== "group") {
+          return bot.sendMessage(chatId, "❌ Группа не найдена или указан неверный тип ссылки.");
+        }
+
+        groupId = resolved.object_id;
+      } catch (error) {
+        return bot.sendMessage(chatId, "⚠ Ошибка при разрешении короткого имени. Проверьте правильность ссылки.");
+      }
+    }
   }
 
   try {
-    const response = await vk.api.groups.getById({
-      group_ids: groupId, // Убедитесь, что здесь передается корректный ID
-      fields: "photo_200,city,description,counters,verified,cover,website,wall_comments"
+    const groupResponse = await axios.get("https://api.vk.com/method/groups.getById", {
+      params: {
+        group_id: groupId,
+        fields: "photo_200,city,description,members_count,verified,cover,website",
+        access_token: process.env.VK_ACCESS_TOKEN,
+        v: "5.199",
+      },
     });
 
-    if (!response.length) {
+    if (groupResponse.data.error) {
+      return bot.sendMessage(chatId, `❌ Ошибка VK API: ${groupResponse.data.error.error_msg}`);
+    }
+
+    const group = groupResponse.data.response?.groups?.[0];  // Извлекаем объект из массива groups
+
+    if (!group) {
       return bot.sendMessage(chatId, "❌ Сообщество не найдено. Проверьте правильность ID или ссылки.");
     }
 
-    const group = response[0];
-    const city = group.city ? group.city.title : "Не указан";
+    const city = group.city?.title || "Не указан";
     const verified = group.verified ? "✅ Да" : "❌ Нет";
     const description = group.description || "Нет описания";
-    const membersCount = group.counters?.members || 0;
-    const photosCount = group.counters?.photos || 0;
-    const videosCount = group.counters?.videos || 0;
-    const postsCount = group.counters?.posts || 0;
+    const membersCount = group.members_count || "Неизвестно";
     const website = group.website || "❌ Не указан";
-    const wallComments = group.wall_comments ? "✅ Разрешены" : "❌ Запрещены";
+    const cover = group.cover?.images?.pop()?.url || null; // Берем последнее изображение, если оно есть
+    const avatar = group.photo_200 || null; // Аватарка сообщества
 
-    // Экранирование специальных символов для Markdown
     function escapeMarkdown(text) {
       return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, "\\$1");
     }
 
-    const groupInfo = `
-👥 *Сообщество:* [${escapeMarkdown(group.name)}](https://vk.com/${groupId})
+    const groupInfo = ` 
+👥 *Сообщество:* [${escapeMarkdown(group.name)}](https://vk.com/club${groupId})
 🏙 *Город:* ${escapeMarkdown(city)}
 🔹 *Верифицировано:* ${verified}
 📜 *Описание:* ${escapeMarkdown(description)}
 🔗 *Вебсайт:* ${website}
-💬 *Комментарии на стене:* ${wallComments}
-📸 *Фотографии:* ${photosCount}
-🎥 *Видео:* ${videosCount}
-📝 *Записи на стене:* ${postsCount}
 👥 *Участников:* ${membersCount}
-🖼 *Обложка:*`;
+🖼 *Аватарка:*`;
+
+    const sendMessageOptions = {
+      caption: groupInfo,
+      parse_mode: "Markdown",
+    };
+
+    // Если есть аватарка, отправляем её
+    if (avatar) {
+      sendMessageOptions.caption = `🖼 *Аватарка:*`;
+      bot.sendPhoto(chatId, avatar, sendMessageOptions);
+    }
 
     // Если есть обложка, отправляем её
-    if (group.cover) {
-      bot.sendPhoto(chatId, group.cover?.src, {
-        caption: groupInfo,
-        parse_mode: "Markdown"
-      });
+    if (cover) {
+      sendMessageOptions.caption = groupInfo;
+      bot.sendPhoto(chatId, cover, sendMessageOptions);
     } else {
       bot.sendMessage(chatId, groupInfo, { parse_mode: "Markdown" });
     }
-
   } catch (error) {
-    console.error(error); // Для отладки
-    bot.sendMessage(chatId, "⚠ Ошибка при получении данных о сообществе. Проверьте правильность ID и наличие доступа.");
+    bot.sendMessage(chatId, "⚠ Ошибка при получении данных о сообществе. Проверьте правильность ссылки или ID.");
   }
 });
 
@@ -560,7 +599,7 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
 });
 
 function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends) {
-  return `<!DOCTYPE html>
+  return `
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -636,6 +675,293 @@ function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedT
 </body>
 </html>`; 
 }
+
+//📌 команда /gifo 
+bot.onText(/\/ginfo (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  let groupId = match[1].trim(); // Убираем лишние пробелы
+
+  // Паттерн для проверки ссылки на ВКонтакте
+  const vkUrlPattern = /(?:https?:\/\/)?(?:www\.)?vk\.com\/(club|public|event)?(\d+|[a-zA-Z0-9_.-]+)/;
+  const matchResult = groupId.match(vkUrlPattern);
+
+  if (matchResult) {
+    groupId = matchResult[2] || matchResult[1];
+    
+    if (isNaN(groupId)) {
+      try {
+        const resolveResponse = await axios.get("https://api.vk.com/method/utils.resolveScreenName", {
+          params: {
+            screen_name: groupId,
+            access_token: process.env.VK_ACCESS_TOKEN,
+            v: "5.199",
+          },
+        });
+
+        if (resolveResponse.data.error) {
+          return bot.sendMessage(chatId, `❌ Ошибка VK API: ${resolveResponse.data.error.error_msg}`);
+        }
+
+        const resolved = resolveResponse.data.response;
+        if (!resolved || resolved.type !== "group") {
+          return bot.sendMessage(chatId, "❌ Группа не найдена или указан неверный тип ссылки.");
+        }
+
+        groupId = resolved.object_id;
+      } catch (error) {
+        return bot.sendMessage(chatId, "⚠ Ошибка при разрешении короткого имени. Проверьте правильность ссылки.");
+      }
+    }
+  }
+
+  try {
+    const groupResponse = await axios.get("https://api.vk.com/method/groups.getById", {
+      params: {
+        group_id: groupId,
+        fields: "photo_200,city,description,members_count,verified,cover,website",
+        access_token: process.env.VK_ACCESS_TOKEN,
+        v: "5.199",
+      },
+    });
+
+    if (groupResponse.data.error) {
+      return bot.sendMessage(chatId, `❌ Ошибка VK API: ${groupResponse.data.error.error_msg}`);
+    }
+
+    const group = groupResponse.data.response?.groups?.[0];  // Извлекаем объект из массива groups
+
+    if (!group) {
+      return bot.sendMessage(chatId, "❌ Сообщество не найдено. Проверьте правильность ID или ссылки.");
+    }
+
+    // Генерация HTML содержимого
+    const htmlContent = generateHtml(group);
+
+    // Укажите путь для сохранения HTML файла
+    const filePath = path.join(__dirname, 'group_info.html');
+
+    // Сохраняем HTML файл
+    fs.writeFileSync(filePath, htmlContent);
+
+    // Отправляем HTML файл в Telegram
+    bot.sendDocument(chatId, filePath, { caption: 'Вот информация о группе!' })
+      .then(() => {
+        // Удаляем файл после отправки
+        fs.unlinkSync(filePath);
+      })
+      .catch((error) => {
+        console.error(error);
+        bot.sendMessage(chatId, '❌ Ошибка при отправке файла.');
+      });
+
+  } catch (error) {
+    console.error("Ошибка при запросе к API ВКонтакте:", error);
+    bot.sendMessage(chatId, "⚠ Ошибка при получении данных о сообществе. Проверьте правильность ссылки или ID.");
+  }
+});
+
+// Функция для генерации HTML содержимого
+function generateHtml(group) {
+  return `
+  <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Информация о группе ВКонтакте</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+          background-size: 400% 400%; 
+          animation: gradientAnimation 15s ease infinite; 
+          text-align: center; 
+          margin: 0; 
+          padding: 0; 
+          min-height: 100vh;
+          color: white;
+        }
+        @keyframes gradientAnimation { 
+          0% { background-position: 0% 50%; } 
+          50% { background-position: 100% 50%; } 
+          100% { background-position: 0% 50%; } 
+        }
+        .container { 
+          width: 300px; 
+          background: rgba(0, 0, 0, 0.8); 
+          padding: 15px; 
+          margin: 50px auto; 
+          border-radius: 10px; 
+          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+        }
+        .avatar { 
+          width: 80px; 
+          height: 80px; 
+          border-radius: 50%; 
+          margin-bottom: 10px; 
+        }
+        .info { 
+          text-align: left; 
+          font-size: 14px; 
+        }
+        footer { 
+          position: fixed; 
+          bottom: 10px; 
+          width: 100%; 
+          text-align: center; 
+          font-size: 12px; 
+          color: white; 
+          background-color: rgba(0, 0, 0, 0.5); 
+          padding: 5px 0; 
+        }
+        footer a { color: #fffb00; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <img src="${group.photo_200}" class="avatar" alt="Фото группы">
+        <h2>${group.name}</h2>
+        <div class="info">
+          <p><b>Город:</b> ${group.city?.title || "Не указан"}</p>
+          <p><b>Верифицировано:</b> ${group.verified ? "✅ Да" : "❌ Нет"}</p>
+          <p><b>Описание:</b> ${group.description || "Нет описания"}</p>
+          <p><b>Участников:</b> ${group.members_count || "Неизвестно"}</p>
+          <p><b>Вебсайт:</b> ${group.website || "❌ Не указан"}</p>
+        </div>
+      </div>
+      <footer>Developer INK</footer>
+    </body>
+  </html>`;
+}
+
+//📌 команда участники 
+function generateHtml(members) {
+  const membersHtml = members.map(member => `
+    <div class="friend">
+      <img src="${member.photo_100}" class="avatar" alt="Фото">
+      <div class="friend-info">${member.first_name} ${member.last_name}</div>
+    </div>
+  `).join('');
+
+  return `<!DOCTYPE html>
+  <html lang="ru">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список участников группы</title>
+    <style>
+      body { 
+        font-family: Arial, sans-serif; 
+        background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
+        background-size: 400% 400%; 
+        animation: gradientAnimation 15s ease infinite; 
+        text-align: center; 
+        margin: 0; 
+        padding: 0; 
+        min-height: 100vh;
+        color: white;
+      }
+      @keyframes gradientAnimation { 
+        0% { background-position: 0% 50%; } 
+        50% { background-position: 100% 50%; } 
+        100% { background-position: 0% 50%; } 
+      }
+      .container { 
+        width: 300px; 
+        background: rgba(0, 0, 0, 0.8); 
+        padding: 15px; 
+        margin: 50px auto; 
+        border-radius: 10px; 
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+      }
+      .friend { 
+        margin-bottom: 10px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+      }
+      .avatar { 
+        width: 50px; 
+        height: 50px; 
+        border-radius: 50%; 
+        margin-right: 10px; 
+      }
+      .friend-info { 
+        text-align: left; 
+        font-size: 14px; 
+      }
+      footer { 
+        position: fixed; 
+        bottom: 10px; 
+        width: 100%; 
+        text-align: center; 
+        font-size: 12px; 
+        color: white; 
+        background-color: rgba(0, 0, 0, 0.5); 
+        padding: 5px 0; 
+      }
+      footer a { color: #fffb00; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Участники группы</h2>
+      ${membersHtml}
+    </div>
+    <footer>Developer INK</footer>
+  </body>
+  </html>`;
+}
+
+// Команда /участники
+bot.onText(/\/участники (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  let groupId = match[1];
+
+  // Если передана ссылка, извлекаем короткое имя группы
+  if (groupId.includes("vk.com/")) {
+    groupId = groupId.split("/").pop();
+  }
+
+  try {
+    // Получаем список участников группы
+    const response = await axios.get("https://api.vk.com/method/groups.getMembers", {
+      params: {
+        group_id: groupId,
+        fields: "first_name,last_name,photo_100",
+        access_token: process.env.VK_ACCESS_TOKEN,
+        v: "5.131"
+      }
+    });
+
+    if (response.data.error) {
+      bot.sendMessage(chatId, `Ошибка: ${response.data.error.error_msg}`);
+      return;
+    }
+
+    const members = response.data.response.items;
+
+    if (!members.length) {
+      bot.sendMessage(chatId, "В группе нет участников или она скрыта.");
+      return;
+    }
+
+    // Генерируем HTML
+    const htmlContent = generateHtml(members);
+    const filePath = `members_${groupId}.html`;
+
+    // Сохраняем в файл
+    fs.writeFileSync(filePath, htmlContent, "utf8");
+
+    // Отправляем файл пользователю
+    bot.sendDocument(chatId, filePath, { caption: "Список участников группы" })
+      .then(() => fs.unlinkSync(filePath))  // Удаляем файл после отправки
+      .catch(err => console.error("Ошибка при отправке файла:", err));
+
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, "Ошибка при получении списка участников.");
+  }
+});
 
 //📌 команда /друзья 
 bot.onText(/\/друзья (\d+)/, async (msg, match) => {
@@ -1173,13 +1499,30 @@ bot.onText(/\/photo (.+)/, async (msg, match) => {
 });
 
 //📌 команда settings
+let isLoggingEnabled = false;  // Переменная для включения/выключения логов
+
+// Функция для отправки информации для разработчиков во всплывающем окне
+async function sendDeveloperInfo(chatId) {
+  const developerInfo = 
+    `🛠 Информация для разработчиков:
+    Этот бот был написан для личных целей. Создатель не несет ответственности, если ваш аккаунт ВКонтакте будет заблокирован из-за запрета на использование шпионских программ!
+
+    Если вы вносите изменения в код бота и готовитесь к публикации, укажите автора: INK.
+    `;
+  
+  bot.sendMessage(chatId, developerInfo);  // Отправка сообщения через Telegram API
+  
+  if (isLoggingEnabled) console.log(`Команда отправки информации для разработчиков выполнена для чата ${chatId}`);
+}
+
 // Функция для получения информации о пользователе ВКонтакте
 async function getVkUserInfo() {
   try {
     const response = await vk.api.users.get({ access_token: process.env.VK_ACCESS_TOKEN });
+    if (isLoggingEnabled) console.log('Запрос к VK API: Получение информации о пользователе');
     return response[0]; // Возвращаем данные о пользователе
   } catch (error) {
-    console.error('Ошибка при получении данных о пользователе ВКонтакте:', error);
+    if (isLoggingEnabled) console.error('Ошибка при получении данных о пользователе ВКонтакте:', error);
     return null;
   }
 }
@@ -1195,30 +1538,34 @@ async function checkVkToken() {
     });
 
     if (response.data && response.data.response && response.data.response.length > 0) {
+      if (isLoggingEnabled) console.log('Токен ВКонтакте действителен');
       return true;  // Токен действителен
     } else {
+      if (isLoggingEnabled) console.log('Токен ВКонтакте не действителен');
       return false;  // Токен не действителен
     }
   } catch (error) {
-    console.error('Ошибка при проверке токена:', error);
+    if (isLoggingEnabled) console.error('Ошибка при проверке токена:', error);
     return false;  // Токен не действителен
   }
 }
-// Функция для отправки информации для разработчиков
-async function sendDeveloperInfo(chatId) {
-  const developerInfo = 
-    `🛠 **Информация для разработчиков**:
-    Этот бот был написан для личных целей. Создатель не несет ответственности, если ваш аккаунт ВКонтакте будет заблокирован из-за запрета на использование шпионских программ!
 
-    Если вы вносите изменения в код бота и готовитесь к публикации, укажите автора: **INK**.
-    `;
-
-  bot.sendMessage(chatId, developerInfo);
+// Функция для получения нагрузки на процессор и память
+async function getSystemLoad() {
+  const cpuUsage = await new Promise((resolve) => osu.cpuUsage(resolve));
+  const memoryUsage = osu.freememPercentage() * 100; // Свободная память в процентах
+  return {
+    cpu: cpuUsage.toFixed(2),
+    memory: (100 - memoryUsage).toFixed(2) // Занятая память в процентах
+  };
 }
 
 // Основной обработчик для команды /settings
 bot.onText(/\/settings/, async (msg) => {
   const chatId = msg.chat.id;
+
+  // Логирование команды /settings
+  if (isLoggingEnabled) console.log(`Команда /settings выполнена пользователем ${chatId}`);
 
   // Проверка, что команду может выполнить только администратор
   if (!allowedAdmins.includes(chatId)) {
@@ -1226,35 +1573,46 @@ bot.onText(/\/settings/, async (msg) => {
   }
 
   const uptime = moment.duration(process.uptime(), 'seconds').humanize();  // Время работы бота
+  const startTime = moment().format('DD-MM-YYYY HH:mm:ss');  // Дата и время запуска
   const vkUserInfo = await getVkUserInfo();
   const vkTokenValid = await checkVkToken() ? "✅ Токен ВКонтакте действителен" : "❌ Токен ВКонтакте не действителен";
+  const systemLoad = await getSystemLoad();  // Получаем нагрузку на систему
 
   const settingsMessage = `
-    🔧 **Настройки бота**:
-    - **Время работы**: ${uptime}
-    - **Владелец токена (ВКонтакте)**: ${vkUserInfo ? vkUserInfo.first_name + " " + vkUserInfo.last_name : "Не удалось получить данные"}
-    - **Статус токена ВКонтакте**: ${vkTokenValid}
+    🔧 Настройки бота:
+    - Время работы: ${uptime}
+    - Дата и время запуска: ${startTime}
+    - Владелец токена (ВКонтакте): ${vkUserInfo ? vkUserInfo.first_name + " " + vkUserInfo.last_name : "Не удалось получить данные"}
+    - Статус токена ВКонтакте: ${vkTokenValid}
+    - Нагрузка на процессор: ${systemLoad.cpu}%
+    - Нагрузка на память: ${systemLoad.memory}%
+    - Разработчик INK
   `;
 
-  // Создание кнопок для перезапуска бота и проверки токена
   const options = {
     reply_markup: {
       inline_keyboard: [
         [{ text: "✅ Перезапустить бота", callback_data: 'restart' }],
         [{ text: "🛠 Информация для разработчиков", callback_data: 'developer_info' }],
-        [{ text: "🔍 Проверить токен ВКонтакте", callback_data: 'check_token' }]
+        [{ text: "🔍 Проверить токен ВКонтакте", callback_data: 'check_token' }],
+        [{ text: "🔗 Код на GitHub", url: "https://github.com/inkoson007/TELEGRAM-BOT-INFO-VK-PROFILE" }],
+        [{ text: isLoggingEnabled ? "❌ Отключить логи" : "✅ Включить логи", callback_data: 'toggle_logs' }] // Кнопка для включения/выключения логов
       ]
     }
   };
 
-  // Отправляем информацию в чат
   bot.sendMessage(chatId, settingsMessage, options);
+
+  if (isLoggingEnabled) console.log(`Отправлена информация о настройках в чат ${chatId}`);
 });
 
 // Обработка нажатий на кнопки
 bot.on('callback_query', async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const data = callbackQuery.data;
+
+  // Логирование всех нажатий на кнопки
+  if (isLoggingEnabled) console.log(`Команда с кнопки выполнена для чата ${chatId}: ${data}`);
 
   if (data === 'restart') {
     // Перезапуск бота
@@ -1269,21 +1627,117 @@ bot.on('callback_query', async (callbackQuery) => {
       bot.sendMessage(chatId, '✅ Бот перезапущен успешно!');
       process.exit();  // Завершаем текущий процесс
     });
+
+    if (isLoggingEnabled) console.log(`Перезапуск бота выполнен для чата ${chatId}`);
   }
 
   if (data === 'developer_info') {
-    // Отправка информации для разработчиков
     sendDeveloperInfo(chatId);
   }
 
   if (data === 'check_token') {
-    // Проверка токена ВКонтакте
     const vkTokenValid = await checkVkToken() ? "✅ Токен ВКонтакте действителен" : "❌ Токен ВКонтакте не действителен";
     bot.sendMessage(chatId, `Статус токена ВКонтакте: ${vkTokenValid}`);
   }
 
-  // Ответ на запрос
+  if (data === 'toggle_logs') {
+    isLoggingEnabled = !isLoggingEnabled;  // Переключаем состояние логирования
+    const logStatusMessage = isLoggingEnabled ? "✅ Логи включены" : "❌ Логи отключены";
+    bot.sendMessage(chatId, logStatusMessage);
+    if (isLoggingEnabled) console.log('Логи включены');
+    else console.log('Логи отключены');
+  }
+
   bot.answerCallbackQuery(callbackQuery.id);
+});
+
+//📌 команда id
+// Функция для получения ID пользователя по ссылке на профиль ВКонтакте
+async function getVkUserId(profileUrl) {
+  try {
+    // Извлекаем имя пользователя из ссылки
+    const usernameMatch = profileUrl.match(/vk\.com\/([a-zA-Z0-9_.]+)/);
+    if (!usernameMatch) return null;
+
+    const username = usernameMatch[1];
+
+    // Запрос к API VK для получения ID
+    const response = await axios.get('https://api.vk.com/method/users.get', {
+      params: {
+        user_ids: username,
+        access_token: process.env.VK_ACCESS_TOKEN, // Используем токен из переменных окружения
+        v: '5.131',
+      },
+    });
+
+    if (response.data.response && response.data.response.length > 0) {
+      return response.data.response[0].id; // Возвращаем ID пользователя
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error('Ошибка при получении ID пользователя:', error);
+    return null;
+  }
+}
+
+// Обработчик команды /id
+bot.onText(/\/id (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const profileUrl = match[1].trim();
+
+  bot.sendMessage(chatId, '⏳ Получаем ID профиля...');
+
+  const userId = await getVkUserId(profileUrl);
+
+  if (userId) {
+    bot.sendMessage(chatId, `✅ ID данного профиля ВКонтакте: ${userId}`);
+  } else {
+    bot.sendMessage(chatId, '❌ Не удалось получить ID. Проверьте правильность ссылки.');
+  }
+});
+
+//📌 команда gid
+bot.onText(/\/gid (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  let groupUrl = match[1].trim(); // Убираем пробелы
+
+  // Регулярное выражение для извлечения короткого имени группы
+  const vkUrlPattern = /(?:https?:\/\/)?(?:www\.)?vk\.com\/([a-zA-Z0-9_.-]+)/;
+  const matchResult = groupUrl.match(vkUrlPattern);
+
+  if (!matchResult) {
+    return bot.sendMessage(chatId, "❌ Пожалуйста, укажите корректную ссылку на группу ВКонтакте.");
+  }
+
+  let screenName = matchResult[1]; // Извлекаем короткое имя группы
+
+  try {
+    // Первый запрос: получаем информацию через resolveScreenName
+    const resolveResponse = await axios.get("https://api.vk.com/method/utils.resolveScreenName", {
+      params: {
+        screen_name: screenName,
+        access_token: process.env.VK_ACCESS_TOKEN, // Убедитесь, что у вас есть токен
+        v: "5.199",
+      },
+    });
+
+    if (resolveResponse.data.error) {
+      return bot.sendMessage(chatId, `❌ Ошибка VK API: ${resolveResponse.data.error.error_msg}`);
+    }
+
+    const resolved = resolveResponse.data.response;
+    if (!resolved || resolved.type !== "group") {
+      return bot.sendMessage(chatId, "❌ Группа не найдена или указан неверный тип ссылки.");
+    }
+
+    const groupId = resolved.object_id;
+
+    bot.sendMessage(chatId, `✅ ID группы: ${groupId}`);
+  } catch (error) {
+    console.error(error);
+    bot.sendMessage(chatId, "⚠ Ошибка при запросе к API ВКонтакте.");
+  }
 });
 
 //📌 команда update
@@ -1298,11 +1752,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.3"
+  // Заголовок "VK Шпион v1.4"
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.3", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.4", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1312,7 +1766,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Добавили больше команд на получение информации !", canvas.width / 2, 160);
+  ctx.fillText("Добавлена информация о группах, добавили настройки", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -1327,7 +1781,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.3",
+      caption: "🆕 Обновление VK Шпион v1.4",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
