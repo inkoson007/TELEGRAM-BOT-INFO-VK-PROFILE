@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.4 <-----');
+console.log('-----> VK шпион V1.5 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -1559,7 +1559,32 @@ async function getSystemLoad() {
     memory: (100 - memoryUsage).toFixed(2) // Занятая память в процентах
   };
 }
+// Функция для получения информации о пинге бота
+async function getBotPing() {
+  const startTime = Date.now();
+  await bot.getMe();  // Пинг бота
+  const ping = Date.now() - startTime;
+  return ping;
+}
 
+// Функция для получения информации об операционной системе
+function getSystemInfo() {
+  const platform = os.platform();  // Платформа операционной системы (например, 'linux', 'win32', 'darwin')
+  const arch = os.arch();  // Архитектура системы (например, 'x64')
+  const osType = os.type();  // Тип ОС (например, 'Linux', 'Darwin', 'Windows_NT')
+  const osRelease = os.release();  // Версия ОС
+  const hostname = os.hostname();  // Имя хоста
+  const uptime = os.uptime();  // Время работы системы в секундах
+
+  return {
+    platform,
+    arch,
+    osType,
+    osRelease,
+    hostname,
+    uptime: moment.duration(uptime, 'seconds').humanize(),  // Время работы в человекочитаемом формате
+  };
+}
 // Основной обработчик для команды /settings
 bot.onText(/\/settings/, async (msg) => {
   const chatId = msg.chat.id;
@@ -1577,6 +1602,8 @@ bot.onText(/\/settings/, async (msg) => {
   const vkUserInfo = await getVkUserInfo();
   const vkTokenValid = await checkVkToken() ? "✅ Токен ВКонтакте действителен" : "❌ Токен ВКонтакте не действителен";
   const systemLoad = await getSystemLoad();  // Получаем нагрузку на систему
+  const botPing = await getBotPing();  // Получаем пинг бота
+  const systemInfo = getSystemInfo();  // Получаем информацию об ОС
 
   const settingsMessage = `
     🔧 Настройки бота:
@@ -1586,6 +1613,14 @@ bot.onText(/\/settings/, async (msg) => {
     - Статус токена ВКонтакте: ${vkTokenValid}
     - Нагрузка на процессор: ${systemLoad.cpu}%
     - Нагрузка на память: ${systemLoad.memory}%
+    - Пинг бота: ${botPing}ms
+    - Операционная система:
+      - Платформа: ${systemInfo.platform}
+      - Архитектура: ${systemInfo.arch}
+      - Тип ОС: ${systemInfo.osType}
+      - Версия ОС: ${systemInfo.osRelease}
+      - Имя хоста: ${systemInfo.hostname}
+      - Время работы системы: ${systemInfo.uptime}
     - Разработчик INK
   `;
 
@@ -1752,11 +1787,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.4"
+  // Заголовок "VK Шпион v1.5"
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.4", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.5", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1766,7 +1801,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Добавлена информация о группах, добавили настройки", canvas.width / 2, 160);
+  ctx.fillText("Исправление критических ошибок", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -1781,7 +1816,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.4",
+      caption: "🆕 Обновление VK Шпион v1.5",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
