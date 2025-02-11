@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.5 <-----');
+console.log('-----> VK шпион V1.6 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -583,7 +583,7 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
     const followers = user.counters?.followers || 0;  // Followers count
     const friends = user.counters?.friends || 0;  // Friends count
 
-    const htmlContent = generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends);
+    const htmlContent = usergenerateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends);
     const filePath = path.join(__dirname, `profile_${user.id}.html`);
 
     fs.writeFileSync(filePath, htmlContent);
@@ -598,7 +598,7 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
   }
 });
 
-function generateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends) {
+function usergenerateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends) {
   return `
 <html lang="ru">
 <head>
@@ -735,7 +735,7 @@ bot.onText(/\/ginfo (.+)/, async (msg, match) => {
     }
 
     // Генерация HTML содержимого
-    const htmlContent = generateHtml(group);
+    const htmlContent = groupgenerateHtml(group);
 
     // Укажите путь для сохранения HTML файла
     const filePath = path.join(__dirname, 'group_info.html');
@@ -761,7 +761,7 @@ bot.onText(/\/ginfo (.+)/, async (msg, match) => {
 });
 
 // Функция для генерации HTML содержимого
-function generateHtml(group) {
+function groupgenerateHtml(group) {
   return `
   <html lang="ru">
     <head>
@@ -834,7 +834,7 @@ function generateHtml(group) {
 }
 
 //📌 команда участники 
-function generateHtml(members) {
+function usergroupgenerateHtml(members) {
   const membersHtml = members.map(member => `
     <div class="friend">
       <img src="${member.photo_100}" class="avatar" alt="Фото">
@@ -946,7 +946,7 @@ bot.onText(/\/участники (.+)/, async (msg, match) => {
     }
 
     // Генерируем HTML
-    const htmlContent = generateHtml(members);
+    const htmlContent = usergroupgenerateHtml(members);
     const filePath = `members_${groupId}.html`;
 
     // Сохраняем в файл
@@ -1787,11 +1787,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.5"
+  // Заголовок "VK Шпион v1.8"
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.5", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.6", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1816,7 +1816,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.5",
+      caption: "🆕 Обновление VK Шпион v1.6",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
