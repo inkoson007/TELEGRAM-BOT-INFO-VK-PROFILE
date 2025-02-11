@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.6 <-----');
+console.log('-----> VK шпион V1.7 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -1787,11 +1787,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.8"
+  // Заголовок "VK Шпион v1.7"
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.6", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.7", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1816,11 +1816,11 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.6",
+      caption: "🆕 Обновление VK Шпион v1.7",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
 
 
-// Запуск периодической проверки изменений каждые 10 секунд
-setInterval(periodicTracking, 10 * 1000); // 10 секунд
+// Запуск периодической проверки изменений каждую 1 минуту
+setInterval(periodicTracking, 60 * 1000); // 60 секунд
