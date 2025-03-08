@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.7 <-----');
+console.log('-----> VK шпион V1.8 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -71,6 +71,7 @@ bot.onText(/\/help/, (msg) => {
     📌 /участники <ссылка или id> - ${escapeMarkdown("Получить список участников группы")}
     📌 /id <ссылка на профиль> - ${escapeMarkdown("Получить id профиля")}
     📌 /gid <ссылка на группу> - ${escapeMarkdown("Получить id группы")}
+    📌 /statistic <id> - ${escapeMarkdown("Получить статистику друзей")}
     📌 /settings - ${escapeMarkdown("Настройки бота")}
     📌 /update - ${escapeMarkdown("Информация об обновлении")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
@@ -1775,6 +1776,129 @@ bot.onText(/\/gid (.+)/, async (msg, match) => {
   }
 });
 
+//📌 команда statistic
+// Создание таблицы, если ее нет
+db.run(`CREATE TABLE IF NOT EXISTS friends (
+  user_id INTEGER,
+  friend_id INTEGER,
+  first_name TEXT,
+  last_name TEXT,
+  added_at TEXT,
+  removed_at TEXT,
+  PRIMARY KEY (user_id, friend_id)
+)`);
+
+async function trackFriends(userId) {
+  try {
+      const userInfo = await vk.api.users.get({ user_ids: userId });
+      const userFullName = `${userInfo[0].first_name} ${userInfo[0].last_name}`;
+
+      const { items: friends } = await vk.api.friends.get({ user_id: userId, fields: 'nickname' });
+      const currentFriends = new Map(friends.map(f => [f.id, f]));
+
+      db.all('SELECT friend_id FROM friends WHERE user_id = ? AND removed_at IS NULL', [userId], (err, rows) => {
+          if (err) return console.error(err);
+          const knownFriends = new Map(rows.map(row => [row.friend_id, true]));
+
+          // Проверяем новых друзей
+          friends.forEach(friend => {
+              if (!knownFriends.has(friend.id)) {
+                  db.run('INSERT INTO friends (user_id, friend_id, first_name, last_name, added_at) VALUES (?, ?, ?, ?, ?)',
+                      [userId, friend.id, friend.first_name, friend.last_name, moment().format('YYYY-MM-DD HH:mm:ss')]);
+              }
+          });
+
+          // Проверяем удаленных друзей
+          knownFriends.forEach((_, id) => {
+              if (!currentFriends.has(id)) {
+                  db.run('UPDATE friends SET removed_at = ? WHERE user_id = ? AND friend_id = ?',
+                      [moment().format('YYYY-MM-DD HH:mm:ss'), userId, id]);
+              }
+          });
+      });
+
+      return userFullName;
+  } catch (error) {
+      console.error(`Ошибка при получении друзей для пользователя ${userId}:`, error);
+      return null;
+  }
+}
+
+bot.onText(/\/statistic (\d+)/, async (msg, match) => {
+  const userId = match[1];
+  const userFullName = await trackFriends(userId);
+  
+  if (!userFullName) {
+      return bot.sendMessage(msg.chat.id, 'Ошибка при получении данных о пользователе.');
+  }
+  
+  db.get('SELECT COUNT(*) AS count FROM friends WHERE user_id = ?', [userId], async (err, row) => {
+      if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при проверке данных.');
+      
+      if (row.count === 0) {
+          bot.sendMessage(msg.chat.id, `👀 Пользователь ${userFullName} впервые в статистике. Получаю информацию...`);
+      }
+      
+      // Ждем 1 секунду, чтобы база данных обновилась
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      db.all('SELECT * FROM friends WHERE user_id = ?', [userId], async (err, rows) => {
+          if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при получении статистики.');
+          
+          if (rows.length === 0) {
+              return bot.sendMessage(msg.chat.id, `Нет данных для пользователя ${userFullName}.`);
+          }
+
+          // Формируем заголовок с красивым стилем
+          const title = '=====================\n Developer by INK \n=====================\n\n';
+
+          let message = `📊 Статистика друзей пользователя ${userFullName}:\n`;
+          rows.forEach(row => {
+              message += `👤 ${row.first_name} ${row.last_name}\nДобавлен: ${row.added_at}\n`;
+              if (row.removed_at) {
+                  message += `Удален: ${row.removed_at} ❌\n`;
+              } else {
+                  message += `В друзьях: ✅\n`;
+              }
+              message += '\n';
+          });
+
+          // Создаем текстовый файл с заголовком и данными
+          const fileName = `friends_stat_${userId}.txt`;
+          const filePath = `./${fileName}`;
+          const fileContent = title + rows.map(row => {
+              return `👤 ${row.first_name} ${row.last_name}\nДобавлен: ${row.added_at}\n${row.removed_at ? `Удален: ${row.removed_at} ❌\n` : `В друзьях: ✅\n`}\n`;
+          }).join('\n');
+
+          // Записываем в файл
+          fs.writeFileSync(filePath, fileContent);
+
+          // Отправляем текстовый файл
+          const options = {
+              reply_markup: JSON.stringify({
+                  inline_keyboard: [
+                      [{ text: 'Отправить файл', callback_data: 'send_file' }]
+                  ]
+              })
+          };
+          
+          // Отправляем сообщение с кнопкой
+          bot.sendMessage(msg.chat.id, message, options);
+
+          // Слушаем нажатие кнопки
+          bot.on('callback_query', (query) => {
+              if (query.data === 'send_file') {
+                  bot.sendDocument(query.message.chat.id, filePath, { caption: 'Ваши данные о друзьях' })
+                      .then(() => {
+                          // Удаляем файл после отправки
+                          fs.unlinkSync(filePath);
+                      });
+              }
+          });
+      });
+  });
+});
+
 //📌 команда update
 bot.onText(/\/update/, async (msg) => {
   const chatId = msg.chat.id;
@@ -1791,7 +1915,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.7", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.8", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1801,7 +1925,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Исправление критических ошибок", canvas.width / 2, 160);
+  ctx.fillText("Добавлена статистика друзей", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -1816,7 +1940,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.7",
+      caption: "🆕 Обновление VK Шпион v1.8",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
