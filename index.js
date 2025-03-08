@@ -1790,113 +1790,115 @@ db.run(`CREATE TABLE IF NOT EXISTS friends (
 
 async function trackFriends(userId) {
   try {
-      const userInfo = await vk.api.users.get({ user_ids: userId });
-      const userFullName = `${userInfo[0].first_name} ${userInfo[0].last_name}`;
+    const userInfo = await vk.api.users.get({ user_ids: userId });
+    const userFullName = `${userInfo[0].first_name} ${userInfo[0].last_name}`;
 
-      const { items: friends } = await vk.api.friends.get({ user_id: userId, fields: 'nickname' });
-      const currentFriends = new Map(friends.map(f => [f.id, f]));
+    const { items: friends } = await vk.api.friends.get({ user_id: userId, fields: 'nickname' });
+    const currentFriends = new Map(friends.map(f => [f.id, f]));
 
-      db.all('SELECT friend_id FROM friends WHERE user_id = ? AND removed_at IS NULL', [userId], (err, rows) => {
-          if (err) return console.error(err);
-          const knownFriends = new Map(rows.map(row => [row.friend_id, true]));
+    db.all('SELECT friend_id FROM friends WHERE user_id = ? AND removed_at IS NULL', [userId], (err, rows) => {
+      if (err) return console.error(err);
+      const knownFriends = new Map(rows.map(row => [row.friend_id, true]));
 
-          // Проверяем новых друзей
-          friends.forEach(friend => {
-              if (!knownFriends.has(friend.id)) {
-                  db.run('INSERT INTO friends (user_id, friend_id, first_name, last_name, added_at) VALUES (?, ?, ?, ?, ?)',
-                      [userId, friend.id, friend.first_name, friend.last_name, moment().format('YYYY-MM-DD HH:mm:ss')]);
-              }
-          });
-
-          // Проверяем удаленных друзей
-          knownFriends.forEach((_, id) => {
-              if (!currentFriends.has(id)) {
-                  db.run('UPDATE friends SET removed_at = ? WHERE user_id = ? AND friend_id = ?',
-                      [moment().format('YYYY-MM-DD HH:mm:ss'), userId, id]);
-              }
-          });
+      // Проверяем новых друзей
+      friends.forEach(friend => {
+        if (!knownFriends.has(friend.id)) {
+          db.run('INSERT INTO friends (user_id, friend_id, first_name, last_name, added_at) VALUES (?, ?, ?, ?, ?)',
+            [userId, friend.id, friend.first_name, friend.last_name, moment().format('YYYY-MM-DD HH:mm:ss')]);
+        }
       });
 
-      return userFullName;
+      // Проверяем удаленных друзей
+      knownFriends.forEach((_, id) => {
+        if (!currentFriends.has(id)) {
+          db.run('UPDATE friends SET removed_at = ? WHERE user_id = ? AND friend_id = ?',
+            [moment().format('YYYY-MM-DD HH:mm:ss'), userId, id]);
+        }
+      });
+    });
+
+    return userFullName;
   } catch (error) {
-      console.error(`Ошибка при получении друзей для пользователя ${userId}:`, error);
-      return null;
+    console.error(`Ошибка при получении друзей для пользователя ${userId}:`, error);
+    return null;
   }
 }
 
 bot.onText(/\/statistic (\d+)/, async (msg, match) => {
   const userId = match[1];
   const userFullName = await trackFriends(userId);
-  
+
   if (!userFullName) {
-      return bot.sendMessage(msg.chat.id, 'Ошибка при получении данных о пользователе.');
+    return bot.sendMessage(msg.chat.id, 'Ошибка при получении данных о пользователе.');
   }
-  
+
   db.get('SELECT COUNT(*) AS count FROM friends WHERE user_id = ?', [userId], async (err, row) => {
-      if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при проверке данных.');
-      
-      if (row.count === 0) {
-          bot.sendMessage(msg.chat.id, `👀 Пользователь ${userFullName} впервые в статистике. Получаю информацию...`);
+    if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при проверке данных.');
+
+    if (row.count === 0) {
+      bot.sendMessage(msg.chat.id, `👀 Пользователь ${userFullName} впервые в статистике. Получаю информацию...`);
+    }
+
+    // Ждем 1 секунду, чтобы база данных обновилась
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    db.all('SELECT * FROM friends WHERE user_id = ?', [userId], async (err, rows) => {
+      if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при получении статистики.');
+
+      if (rows.length === 0) {
+        return bot.sendMessage(msg.chat.id, `Нет данных для пользователя ${userFullName}.`);
       }
-      
-      // Ждем 1 секунду, чтобы база данных обновилась
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      db.all('SELECT * FROM friends WHERE user_id = ?', [userId], async (err, rows) => {
-          if (err) return bot.sendMessage(msg.chat.id, 'Ошибка при получении статистики.');
-          
-          if (rows.length === 0) {
-              return bot.sendMessage(msg.chat.id, `Нет данных для пользователя ${userFullName}.`);
-          }
+      // Заголовок
+      const title = `=====================\n Developer by INK \n=====================\n\n`;
 
-          // Формируем заголовок с красивым стилем
-          const title = '=====================\n Developer by INK \n=====================\n\n';
+      // Формируем текстовое сообщение
+      let message = `📊 Статистика друзей пользователя ${userFullName}:\n\n`;
+      let fileContent = title + `📊 Статистика друзей пользователя ${userFullName}:\n\n`;
 
-          let message = `📊 Статистика друзей пользователя ${userFullName}:\n`;
-          rows.forEach(row => {
-              message += `👤 ${row.first_name} ${row.last_name}\nДобавлен: ${row.added_at}\n`;
-              if (row.removed_at) {
-                  message += `Удален: ${row.removed_at} ❌\n`;
-              } else {
-                  message += `В друзьях: ✅\n`;
-              }
-              message += '\n';
-          });
+      rows.forEach(row => {
+        const friendData = `👤 ${row.first_name} ${row.last_name}\nДобавлен: ${row.added_at}\n` +
+                           (row.removed_at ? `Удален: ${row.removed_at} ❌\n\n` : `В друзьях: ✅\n\n`);
 
-          // Создаем текстовый файл с заголовком и данными
-          const fileName = `friends_stat_${userId}.txt`;
-          const filePath = `./${fileName}`;
-          const fileContent = title + rows.map(row => {
-              return `👤 ${row.first_name} ${row.last_name}\nДобавлен: ${row.added_at}\n${row.removed_at ? `Удален: ${row.removed_at} ❌\n` : `В друзьях: ✅\n`}\n`;
-          }).join('\n');
-
-          // Записываем в файл
-          fs.writeFileSync(filePath, fileContent);
-
-          // Отправляем текстовый файл
-          const options = {
-              reply_markup: JSON.stringify({
-                  inline_keyboard: [
-                      [{ text: 'Отправить файл', callback_data: 'send_file' }]
-                  ]
-              })
-          };
-          
-          // Отправляем сообщение с кнопкой
-          bot.sendMessage(msg.chat.id, message, options);
-
-          // Слушаем нажатие кнопки
-          bot.on('callback_query', (query) => {
-              if (query.data === 'send_file') {
-                  bot.sendDocument(query.message.chat.id, filePath, { caption: 'Ваши данные о друзьях' })
-                      .then(() => {
-                          // Удаляем файл после отправки
-                          fs.unlinkSync(filePath);
-                      });
-              }
-          });
+        message += friendData;
+        fileContent += friendData;
       });
+
+      // Проверяем длину сообщения
+      if (message.length > 4096) {
+        // Если слишком длинное — создаем файл
+        const fileName = `friends_stat_${userId}.txt`;
+        const filePath = `./${fileName}`;
+        fs.writeFileSync(filePath, fileContent);
+
+        // Отправляем кнопку для получения файла
+        const options = {
+          reply_markup: JSON.stringify({
+            inline_keyboard: [
+              [{ text: '📂 Получить файл', callback_data: `send_file_${userId}` }]
+            ]
+          })
+        };
+
+        return bot.sendMessage(msg.chat.id, '⚠️ Данные слишком большие для отправки. Нажмите кнопку ниже, чтобы получить файл.', options);
+      }
+
+      // Если сообщение не длинное, просто отправляем его
+      bot.sendMessage(msg.chat.id, message);
+    });
   });
+});
+
+// Обработчик нажатия кнопки "Получить файл"
+bot.on('callback_query', (query) => {
+  if (query.data.startsWith('send_file_')) {
+    const userId = query.data.split('_')[2];
+    const filePath = `./friends_stat_${userId}.txt`;
+
+    bot.sendDocument(query.message.chat.id, filePath, { caption: '📂 Ваша статистика друзей' })
+      .then(() => fs.unlinkSync(filePath)) // Удаляем файл после отправки
+      .catch(err => console.error('Ошибка при отправке файла:', err));
+  }
 });
 
 //📌 команда update
