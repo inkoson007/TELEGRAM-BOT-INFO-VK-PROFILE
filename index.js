@@ -12,7 +12,7 @@ const moment = require('moment');
 const osu = require('os-utils');
 
 
-const allowedAdmins = [1364548192];  // Массив с ID пользователей, которым разрешено использовать команду
+const allowedAdmins = [allowedAdmins];  // Массив с ID пользователей, которым разрешено использовать команду, получить через бота @userinfobot
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.8 <-----');
+console.log('-----> VK шпион V1.9 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -42,7 +42,7 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.7
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.9
 
 📝 Используйте /help для просмотра доступных команд.`);
 });
@@ -72,6 +72,8 @@ bot.onText(/\/help/, (msg) => {
     📌 /id <ссылка на профиль> - ${escapeMarkdown("Получить id профиля")}
     📌 /gid <ссылка на группу> - ${escapeMarkdown("Получить id группы")}
     📌 /statistic <id> - ${escapeMarkdown("Получить статистику друзей")}
+    📌 /like <id> - ${escapeMarkdown("Получить статистику лайков")}
+    📌 /post <id> - ${escapeMarkdown("Получить посты и репосты")}
     📌 /settings - ${escapeMarkdown("Настройки бота")}
     📌 /update - ${escapeMarkdown("Информация об обновлении")}
     💡 ${escapeMarkdown("Введите команду и следуйте инструкциям.")} 
@@ -1901,6 +1903,178 @@ bot.on('callback_query', (query) => {
   }
 });
 
+//📌 команда like
+// Функция разбиения длинного текста на части по 4000 символов
+function splitMessage(text, maxLength = 4000) {
+  let parts = [];
+  while (text.length > maxLength) {
+      let sliceIndex = text.lastIndexOf('\n', maxLength);
+      if (sliceIndex === -1) sliceIndex = maxLength;
+      parts.push(text.slice(0, sliceIndex));
+      text = text.slice(sliceIndex);
+  }
+  parts.push(text);
+  return parts;
+}
+
+// Функция получения имени и фамилии пользователя
+async function getUserName(userId) {
+  try {
+      const user = await vk.api.users.get({ user_ids: userId });
+      return `${user[0].first_name} ${user[0].last_name}`;
+  } catch (error) {
+      console.error(error);
+      return `ID: ${userId}`;
+  }
+}
+
+// Функция получения лайков с постов и фото
+async function getLikes(userId) {
+  let likesData = new Map();
+
+  try {
+      // Получаем список постов пользователя
+      const wall = await vk.api.wall.get({ owner_id: userId, count: 10 });
+
+      for (const post of wall.items) {
+          const likes = await vk.api.likes.getList({
+              type: 'post',
+              owner_id: userId,
+              item_id: post.id,
+              extended: 1 // Получаем имена
+          });
+
+          for (const user of likes.items) {
+              const userKey = `👤 ${user.first_name} ${user.last_name}`;
+              likesData.set(userKey, (likesData.get(userKey) || 0) + 1);
+          }
+      }
+
+      // Получаем фото профиля
+      const profilePhotos = await vk.api.photos.get({
+          owner_id: userId,
+          album_id: 'profile',
+          count: 5
+      });
+
+      for (const photo of profilePhotos.items) {
+          const likes = await vk.api.likes.getList({
+              type: 'photo',
+              owner_id: userId,
+              item_id: photo.id,
+              extended: 1
+          });
+
+          for (const user of likes.items) {
+              const userKey = `📸 ${user.first_name} ${user.last_name}`;
+              likesData.set(userKey, (likesData.get(userKey) || 0) + 1);
+          }
+      }
+
+      // Получаем все фото из профиля
+      const allPhotos = await vk.api.photos.getAll({
+          owner_id: userId,
+          count: 10
+      });
+
+      for (const photo of allPhotos.items) {
+          const likes = await vk.api.likes.getList({
+              type: 'photo',
+              owner_id: userId,
+              item_id: photo.id,
+              extended: 1
+          });
+
+          for (const user of likes.items) {
+              const userKey = `🖼️ ${user.first_name} ${user.last_name}`;
+              likesData.set(userKey, (likesData.get(userKey) || 0) + 1);
+          }
+      }
+
+      if (likesData.size === 0) {
+          return ['❌ Лайков не найдено'];
+      }
+
+      return Array.from(likesData.entries()).map(([name, count]) => `❤️ ${name}: ${count} лайков`).join('\n');
+  } catch (error) {
+      console.error(error);
+      return '⚠ Ошибка при получении лайков';
+  }
+}
+
+// Обработка команды /like
+bot.onText(/\/like (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = match[1];
+
+  bot.sendMessage(chatId, '⏳ Получаю информацию...');
+
+  const userName = await getUserName(userId);
+  const likesText = await getLikes(userId);
+
+  const header = `📊 *Статистика по лайкам для ${userName}*`;
+  const messages = splitMessage(`${header}\n\n${likesText}`);
+
+  for (const message of messages) {
+      bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  }
+});
+
+//📌 команда post
+bot.onText(/\/post (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = match[1];
+
+  try {
+      const response = await vk.api.wall.get({ owner_id: userId, count: 5 });
+      if (!response.items.length) {
+          return bot.sendMessage(chatId, "❌ Посты не найдены.");
+      }
+
+      for (const post of response.items) {
+          let text = post.text || "(Без текста)";
+          let attachments = [];
+          let isRepost = false;
+          let repostText = "";
+          
+          if (post.copy_history) {
+              isRepost = true;
+              const repost = post.copy_history[0];
+              repostText = `\n🔁 Репост от [vk.com/id${repost.owner_id}](https://vk.com/id${repost.owner_id})\n`;
+              text += repostText + (repost.text || "(Без текста)");
+              
+              if (repost.attachments) {
+                  for (const att of repost.attachments) {
+                      if (att.type === "photo") {
+                          const photo = att.photo.sizes.pop().url;
+                          attachments.push(photo);
+                      }
+                  }
+              }
+          }
+          
+          if (post.attachments) {
+              for (const att of post.attachments) {
+                  if (att.type === "photo") {
+                      const photo = att.photo.sizes.pop().url;
+                      attachments.push(photo);
+                  }
+              }
+          }
+
+          let caption = `📝 ${isRepost ? "Репост" : "Пост"} от [vk.com/id${userId}](https://vk.com/id${userId})\n${text}`;
+          if (attachments.length) {
+              await bot.sendPhoto(chatId, attachments[0], { caption, parse_mode: "Markdown" });
+          } else {
+              await bot.sendMessage(chatId, caption, { parse_mode: "Markdown" });
+          }
+      }
+  } catch (error) {
+      console.error(error);
+      bot.sendMessage(chatId, "⚠️ Ошибка при получении постов.");
+  }
+});
+
 //📌 команда update
 bot.onText(/\/update/, async (msg) => {
   const chatId = msg.chat.id;
@@ -1913,11 +2087,11 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "#282c34";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Заголовок "VK Шпион v1.7"
+  // Заголовок 
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.8", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.9", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -1927,7 +2101,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Добавлена статистика друзей", canvas.width / 2, 160);
+  ctx.fillText("Cтатистика лайков и просмотр постов пользователя", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -1942,7 +2116,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.8",
+      caption: "🆕 Обновление VK Шпион v1.9",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
