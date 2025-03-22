@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.9 <-----');
+console.log('-----> VK шпион V1.9.1 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -42,7 +42,7 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.9
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.9.1
 
 📝 Используйте /help для просмотра доступных команд.`);
 });
@@ -1387,6 +1387,19 @@ bot.onText(/\/photo (.+)/, async (msg, match) => {
     return "Только что";
   }
 
+  function getPlatformName(platformId) {
+    const platforms = {
+      1: "Мобильная версия",
+      2: "iPhone",
+      3: "iPad",
+      4: "Android",
+      5: "Windows Phone",
+      6: "ПК",
+      7: "VK Mobile"
+    };
+    return platforms[platformId] || "Неизвестно";
+  }
+
   try {
     const userId = await getVkUserId(vkId);
     if (!userId) {
@@ -1411,7 +1424,7 @@ bot.onText(/\/photo (.+)/, async (msg, match) => {
     const city = user.city ? user.city.title : "Не указан";
     const verified = user.verified ? "✅ Да" : "❌ Нет";
     const online = user.online ? "🟢 Онлайн" : "🔴 Оффлайн";
-    const device = user.last_seen ? `ID ${user.last_seen.platform}` : "Неизвестно";
+    const device = user.last_seen ? getPlatformName(user.last_seen.platform) : "Неизвестно";
     const status = user.status || "Не указан";
     const sex = user.sex === 1 ? "👩 Женский" : user.sex === 2 ? "👨 Мужской" : "Не указан";
     const bdate = user.bdate || "Не указана";
@@ -2091,7 +2104,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.9", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.9.1", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -2101,7 +2114,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Cтатистика лайков и просмотр постов пользователя", canvas.width / 2, 160);
+  ctx.fillText("Мелкие исправления", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -2116,7 +2129,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.9",
+      caption: "🆕 Обновление VK Шпион v1.9.1",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
