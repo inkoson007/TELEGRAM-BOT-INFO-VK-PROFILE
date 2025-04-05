@@ -12,7 +12,7 @@ const moment = require('moment');
 const osu = require('os-utils');
 
 
-const allowedAdmins = [allowedAdmins];  // Массив с ID пользователей, которым разрешено использовать команду, получить через бота @userinfobot
+const allowedAdmins = [];  // Массив с ID пользователей, которым разрешено использовать команду, получить через бота @userinfobot
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
@@ -20,7 +20,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.9.1 <-----');
+console.log('-----> VK шпион V1.9.2 <-----');
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -42,9 +42,33 @@ const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   bot.sendMessage(chatId, `👋 Привет, ${msg.from.first_name}!
-Я бот для отслеживания изменений профилей ВКонтакте. Version 1.9.1
+Я бот для отслеживания изменений профилей ВКонтакте. Version 1.9.2
 
 📝 Используйте /help для просмотра доступных команд.`);
+});
+
+// Список известных команд
+const knownCommands = [
+  '/start', '/help', '/track', '/profile', '/gprofile', '/info',
+  '/ginfo', '/photo', '/друзья', '/подписчики', '/подписки',
+  '/участники', '/id', '/gid', '/statistic', '/like', '/post',
+  '/settings', '/update'
+];
+
+// Обработка всех сообщений
+bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text.trim();
+
+  // Проверяем, является ли сообщение неизвестной командой
+  if (text.startsWith('/')) {
+    const command = text.split(' ')[0];
+    if (!knownCommands.includes(command)) {
+      bot.sendMessage(chatId, '❗ Такой команды нет.\n\n📌 Посмотрите список команд с помощью /help', {
+        parse_mode: 'Markdown'
+      });
+    }
+  }
 });
 
 // 📌 Команда /help (Список команд)
@@ -631,7 +655,8 @@ function usergenerateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elap
       padding: 15px; 
       margin: 50px auto; 
       border-radius: 10px; 
-      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+      box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+      transition: box-shadow 0.3s ease-in-out;
     }
     .avatar { 
       width: 80px; 
@@ -794,7 +819,8 @@ function groupgenerateHtml(group) {
           padding: 15px; 
           margin: 50px auto; 
           border-radius: 10px; 
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+          transition: box-shadow 0.3s ease-in-out;
         }
         .avatar { 
           width: 80px; 
@@ -874,7 +900,8 @@ function usergroupgenerateHtml(members) {
         padding: 15px; 
         margin: 50px auto; 
         border-radius: 10px; 
-        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+        transition: box-shadow 0.3s ease-in-out;
       }
       .friend { 
         margin-bottom: 10px; 
@@ -1042,7 +1069,8 @@ bot.onText(/\/друзья (\d+)/, async (msg, match) => {
           padding: 15px; 
           margin: 50px auto; 
           border-radius: 10px; 
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+          transition: box-shadow 0.3s ease-in-out;
         }
         .friend { 
           margin-bottom: 10px; 
@@ -1173,7 +1201,8 @@ bot.onText(/\/подписчики (\d+)/, async (msg, match) => {
           padding: 15px; 
           margin: 50px auto; 
           border-radius: 10px; 
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+          transition: box-shadow 0.3s ease-in-out;
         }
         .follower { 
           margin-bottom: 10px; 
@@ -1304,7 +1333,8 @@ bot.onText(/\/подписки (\d+)/, async (msg, match) => {
           padding: 15px; 
           margin: 50px auto; 
           border-radius: 10px; 
-          box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2); 
+          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
+          transition: box-shadow 0.3s ease-in-out;
         }
         .subscription { 
           margin-bottom: 10px; 
@@ -2104,7 +2134,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.9.1", canvas.width / 2, 80);
+  ctx.fillText("VK Шпион v1.9.2", canvas.width / 2, 80);
 
   // Блок описания обновления
   ctx.fillStyle = "#444";
@@ -2114,7 +2144,7 @@ bot.onText(/\/update/, async (msg) => {
   ctx.fillStyle = "white";
   ctx.font = "18px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Мелкие исправления", canvas.width / 2, 160);
+  ctx.fillText("Улучшение html, мелкие улучшения", canvas.width / 2, 160);
 
   // Подпись разработчика
   ctx.fillStyle = "#999";
@@ -2129,7 +2159,7 @@ bot.onText(/\/update/, async (msg) => {
 
   out.on("finish", () => {
     bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.9.1",
+      caption: "🆕 Обновление VK Шпион v1.9.2",
     }).then(() => fs.unlinkSync(filePath));
   });
 });
