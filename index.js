@@ -12,7 +12,7 @@ const moment = require('moment');
 const osu = require('os-utils');
 
 
-const allowedAdmins = [];  // Массив с ID пользователей, которым разрешено использовать команду, получить через бота @userinfobot
+const allowedAdmins = [1364548192];  // Массив с ID пользователей, которым разрешено использовать команду, получить через бота @userinfobot
 
 // Подключение к БД
 const db = new sqlite3.Database("tracking.db", (err) => {
@@ -20,7 +20,23 @@ const db = new sqlite3.Database("tracking.db", (err) => {
   else console.log("✅ Подключено к базе данных SQLite.");
 });
 
-console.log('-----> VK шпион V1.9.2 <-----');
+// Конфигурация
+const config = {
+  version: '2.0',
+  author: 'INK'
+};
+
+// Красивый вывод в консоль при старте
+function showWelcomeMessage() {
+  console.log('\x1b[36m%s\x1b[0m', '╔════════════════════════════════════════════╗');
+  console.log('\x1b[36m%s\x1b[0m', `║            VK Шпион v${config.version}           ║`);
+  console.log('\x1b[36m%s\x1b[0m', '╟────────────────────────────────────────────╢');
+  console.log('\x1b[36m%s\x1b[0m', `║  Разработчик: ${config.author}                  ║`);
+  console.log('\x1b[36m%s\x1b[0m', '║                                            ║');
+  console.log('\x1b[36m%s\x1b[0m', '║  Запуск бота...                            ║');
+  console.log('\x1b[36m%s\x1b[0m', '╚════════════════════════════════════════════╝');
+  console.log('\x1b[33m%s\x1b[0m', `⌛ Инициализация модулей...`);
+}
 
 const chatId = process.env.ADMIN_CHAT_ID;
 if (!chatId) {
@@ -37,6 +53,7 @@ db.run(`CREATE TABLE IF NOT EXISTS tracking_settings (vk_id TEXT UNIQUE NOT NULL
 // Инициализация ботов
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 const vk = new VK({ token: process.env.VK_ACCESS_TOKEN });
+showWelcomeMessage();
 
 // 📌 Команда /start (Приветствие)
 bot.onText(/\/start/, (msg) => {
@@ -627,79 +644,291 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
 
 function usergenerateHtml(user, profilePic, lastSeenTime, lastSeenPlatform, elapsedTime, city, country, sex, education, homeTown, status, birthday, followers, friends) {
   return `
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Профиль ВКонтакте</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-      background-size: 400% 400%; 
-      animation: gradientAnimation 15s ease infinite; 
-      text-align: center; 
-      margin: 0; 
-      padding: 0; 
+    :root {
+      --primary: #4F6DF5;
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
       min-height: 100vh;
-      color: white; /* Белый текст */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(79, 109, 245, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
     }
-    @keyframes gradientAnimation { 
-      0% { background-position: 0% 50%; } 
-      50% { background-position: 100% 50%; } 
-      100% { background-position: 0% 50%; } 
+    
+    .profile-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      margin-bottom: 30px;
     }
-    .container { 
-      width: 300px; 
-      background: rgba(0, 0, 0, 0.8); 
-      padding: 15px; 
-      margin: 50px auto; 
-      border-radius: 10px; 
-      box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-      transition: box-shadow 0.3s ease-in-out;
+    
+    .profile-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
     }
-    .avatar { 
-      width: 80px; 
-      height: 80px; 
-      border-radius: 50%; 
-      margin-bottom: 10px; 
+    
+    .profile-header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      padding: 30px 20px;
+      text-align: center;
+      color: white;
+      position: relative;
     }
-    .info { 
-      text-align: left; 
-      font-size: 14px; 
+    
+    .avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 4px solid white;
+      object-fit: cover;
+      margin-bottom: 15px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s ease;
     }
-    footer { 
-      position: fixed; 
-      bottom: 10px; 
-      width: 100%; 
-      text-align: center; 
-      font-size: 12px; 
-      color: white; 
-      background-color: rgba(0, 0, 0, 0.5); 
-      padding: 5px 0; 
+    
+    .avatar:hover {
+      transform: scale(1.05);
     }
-    footer a { color: #fffb00; text-decoration: none; }
+    
+    .profile-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin-bottom: 5px;
+    }
+    
+    .profile-status {
+      font-size: 14px;
+      opacity: 0.9;
+      font-weight: 300;
+    }
+    
+    .profile-body {
+      padding: 25px;
+    }
+    
+    .info-section {
+      margin-bottom: 20px;
+    }
+    
+    .section-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: var(--primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .section-title i {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+    
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    .info-label {
+      font-weight: 500;
+      color: var(--text);
+      opacity: 0.7;
+    }
+    
+    .info-value {
+      font-weight: 400;
+      text-align: right;
+      color: var(--text);
+    }
+    
+    .social-stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 20px;
+      text-align: center;
+    }
+    
+    .stat-item {
+      padding: 10px;
+    }
+    
+    .stat-number {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 18px;
+      color: var(--primary);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+    
+    footer a:hover {
+      color: var(--secondary);
+    }
+    
+    .online-status {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      background: #00E676;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    
+    @media (max-width: 480px) {
+      .profile-card {
+        max-width: 100%;
+      }
+      
+      .profile-header {
+        padding: 25px 15px;
+      }
+      
+      .avatar {
+        width: 80px;
+        height: 80px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <img src="${profilePic}" class="avatar" alt="Фото профиля">
-    <h2>${user.first_name} ${user.last_name}</h2>
-    <div class="info">
-      <p><b>Последний вход:</b> ${lastSeenTime} (${elapsedTime})</p>
-      <p><b>Устройство:</b> ${lastSeenPlatform}</p>
-      <p><b>Город:</b> ${city}</p>
-      <p><b>Страна:</b> ${country}</p>
-      <p><b>Пол:</b> ${sex}</p>
-      <p><b>Дата рождения:</b> ${birthday}</p>
-      <p><b>Статус:</b> ${status}</p>
-      <p><b>Родной город:</b> ${homeTown}</p>
-      <p><b>Образование:</b> ${education}</p>
-      <p><b>Друзья:</b> ${friends}</p>
-      <p><b>Подписчики:</b> ${followers}</p>
+  <div class="profile-card">
+    <div class="profile-header">
+      <div class="online-status">
+        <span class="online-dot"></span>
+        Онлайн
+      </div>
+      <img src="${profilePic}" class="avatar" alt="Фото профиля">
+      <h1 class="profile-name">${user.first_name} ${user.last_name}</h1>
+      <p class="profile-status">${status || 'Нет статуса'}</p>
+    </div>
+    
+    <div class="profile-body">
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-user-circle"></i> Основная информация</h3>
+        <div class="info-item">
+          <span class="info-label">Пол</span>
+          <span class="info-value">${sex}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Дата рождения</span>
+          <span class="info-value">${birthday}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Город</span>
+          <span class="info-value">${city}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Страна</span>
+          <span class="info-value">${country}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Родной город</span>
+          <span class="info-value">${homeTown || 'Не указан'}</span>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-graduation-cap"></i> Образование</h3>
+        <div class="info-value" style="text-align: left; padding: 8px 0;">
+          ${education || 'Не указано'}
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-clock"></i> Активность</h3>
+        <div class="info-item">
+          <span class="info-label">Последний вход</span>
+          <span class="info-value">${lastSeenTime} (${elapsedTime})</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Устройство</span>
+          <span class="info-value">${lastSeenPlatform}</span>
+        </div>
+      </div>
+      
+      <div class="social-stats">
+        <div class="stat-item">
+          <div class="stat-number">${friends}</div>
+          <div class="stat-label">Друзей</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number">${followers}</div>
+          <div class="stat-label">Подписчиков</div>
+        </div>
+      </div>
     </div>
   </div>
-  <footer>Developer INK</footer>
+  
+  <footer>
+    Developer INK
+  </footer>
 </body>
 </html>`; 
 }
@@ -791,75 +1020,280 @@ bot.onText(/\/ginfo (.+)/, async (msg, match) => {
 // Функция для генерации HTML содержимого
 function groupgenerateHtml(group) {
   return `
-  <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Информация о группе ВКонтакте</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-          background-size: 400% 400%; 
-          animation: gradientAnimation 15s ease infinite; 
-          text-align: center; 
-          margin: 0; 
-          padding: 0; 
-          min-height: 100vh;
-          color: white;
-        }
-        @keyframes gradientAnimation { 
-          0% { background-position: 0% 50%; } 
-          50% { background-position: 100% 50%; } 
-          100% { background-position: 0% 50%; } 
-        }
-        .container { 
-          width: 300px; 
-          background: rgba(0, 0, 0, 0.8); 
-          padding: 15px; 
-          margin: 50px auto; 
-          border-radius: 10px; 
-          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-          transition: box-shadow 0.3s ease-in-out;
-        }
-        .avatar { 
-          width: 80px; 
-          height: 80px; 
-          border-radius: 50%; 
-          margin-bottom: 10px; 
-        }
-        .info { 
-          text-align: left; 
-          font-size: 14px; 
-        }
-        footer { 
-          position: fixed; 
-          bottom: 10px; 
-          width: 100%; 
-          text-align: center; 
-          font-size: 12px; 
-          color: white; 
-          background-color: rgba(0, 0, 0, 0.5); 
-          padding: 5px 0; 
-        }
-        footer a { color: #fffb00; text-decoration: none; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <img src="${group.photo_200}" class="avatar" alt="Фото группы">
-        <h2>${group.name}</h2>
-        <div class="info">
-          <p><b>Город:</b> ${group.city?.title || "Не указан"}</p>
-          <p><b>Верифицировано:</b> ${group.verified ? "✅ Да" : "❌ Нет"}</p>
-          <p><b>Описание:</b> ${group.description || "Нет описания"}</p>
-          <p><b>Участников:</b> ${group.members_count || "Неизвестно"}</p>
-          <p><b>Вебсайт:</b> ${group.website || "❌ Не указан"}</p>
+  <!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Информация о группе ВКонтакте</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary: #5181B8; /* VK blue */
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      --verified: #4BB34B;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(81, 129, 184, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
+    }
+    
+    .group-card {
+      width: 100%;
+      max-width: 450px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      margin-bottom: 30px;
+    }
+    
+    .group-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+    }
+    
+    .group-header {
+      background: linear-gradient(135deg, var(--primary), #3a6ea5);
+      padding: 30px 20px;
+      text-align: center;
+      color: white;
+      position: relative;
+    }
+    
+    .group-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 12px;
+      border: 4px solid white;
+      object-fit: cover;
+      margin-bottom: 15px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s ease;
+    }
+    
+    .group-avatar:hover {
+      transform: scale(1.05);
+    }
+    
+    .group-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .verified-badge {
+      margin-left: 8px;
+      color: var(--verified);
+      font-size: 18px;
+    }
+    
+    .group-body {
+      padding: 25px;
+    }
+    
+    .info-section {
+      margin-bottom: 20px;
+    }
+    
+    .section-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: var(--primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .section-title i {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+    
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    .info-label {
+      font-weight: 500;
+      color: var(--text);
+      opacity: 0.7;
+      flex: 1;
+    }
+    
+    .info-value {
+      font-weight: 400;
+      text-align: right;
+      color: var(--text);
+      flex: 1.5;
+    }
+    
+    .description {
+      padding: 15px;
+      background: rgba(81, 129, 184, 0.05);
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .members-count {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+    
+    .website-link {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color 0.3s ease;
+      word-break: break-all;
+    }
+    
+    .website-link:hover {
+      color: var(--secondary);
+      text-decoration: underline;
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+    
+    footer a:hover {
+      color: var(--secondary);
+    }
+    
+    @media (max-width: 480px) {
+      .group-card {
+        max-width: 100%;
+      }
+      
+      .group-header {
+        padding: 25px 15px;
+      }
+      
+      .group-avatar {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .group-name {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="group-card">
+    <div class="group-header">
+      <img src="${group.photo_200}" class="group-avatar" alt="Фото группы">
+      <h1 class="group-name">
+        ${group.name}
+        ${group.verified ? '<span class="verified-badge"><i class="fas fa-check-circle"></i></span>' : ''}
+      </h1>
+    </div>
+    
+    <div class="group-body">
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-info-circle"></i> Основная информация</h3>
+        <div class="info-item">
+          <span class="info-label">Город</span>
+          <span class="info-value">${group.city?.title || "Не указан"}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Верификация</span>
+          <span class="info-value">
+            ${group.verified ? '<span style="color: var(--verified);"><i class="fas fa-check"></i> Подтверждена</span>' : '<span style="color: #FF4757;"><i class="fas fa-times"></i> Не подтверждена</span>'}
+          </span>
         </div>
       </div>
-      <footer>Developer INK</footer>
-    </body>
-  </html>`;
+      
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-users"></i> Участники</h3>
+        <div style="text-align: center;">
+          <span class="members-count">
+            <i class="fas fa-user-friends"></i> ${group.members_count || "0"} участников
+          </span>
+        </div>
+      </div>
+      
+      ${group.description ? `
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-align-left"></i> Описание</h3>
+        <div class="description">
+          ${group.description}
+        </div>
+      </div>
+      ` : ''}
+      
+      ${group.website ? `
+      <div class="info-section">
+        <h3 class="section-title"><i class="fas fa-globe"></i> Вебсайт</h3>
+        <div style="text-align: center; margin-top: 10px;">
+          <a href="${group.website.startsWith('http') ? group.website : 'https://' + group.website}" 
+             class="website-link" 
+             target="_blank">
+            <i class="fas fa-external-link-alt"></i> ${group.website}
+          </a>
+        </div>
+      </div>
+      ` : ''}
+    </div>
+  </div>
+  
+  <footer>
+    Developer INK
+  </footer>
+</body>
+</html>`;
 }
 
 //📌 команда участники 
@@ -872,74 +1306,172 @@ function usergroupgenerateHtml(members) {
   `).join('');
 
   return `<!DOCTYPE html>
-  <html lang="ru">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Список участников группы</title>
-    <style>
-      body { 
-        font-family: Arial, sans-serif; 
-        background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-        background-size: 400% 400%; 
-        animation: gradientAnimation 15s ease infinite; 
-        text-align: center; 
-        margin: 0; 
-        padding: 0; 
-        min-height: 100vh;
-        color: white;
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Список участников группы</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary: #5181B8;
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      --online: #4BB34B;
+      --offline: #99A2AD;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(81, 129, 184, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
+    }
+    
+    .members-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    
+    .members-header {
+      background: linear-gradient(135deg, var(--primary), #3a6ea5);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    
+    .members-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin: 0;
+    }
+    
+    .members-list {
+      padding: 15px 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .member-card {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: rgba(81, 129, 184, 0.05);
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+    
+    .member-card:hover {
+      background: rgba(81, 129, 184, 0.1);
+      transform: translateX(5px);
+    }
+    
+    .member-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 15px;
+      border: 2px solid #e1e3e6;
+    }
+    
+    .member-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: var(--text);
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 30px;
+      color: #656565;
+    }
+    
+    .empty-state i {
+      font-size: 40px;
+      margin-bottom: 15px;
+      color: #d3d3d3;
+    }
+    
+    @media (max-width: 480px) {
+      .members-container {
+        max-width: 100%;
       }
-      @keyframes gradientAnimation { 
-        0% { background-position: 0% 50%; } 
-        50% { background-position: 100% 50%; } 
-        100% { background-position: 0% 50%; } 
+      
+      .member-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
       }
-      .container { 
-        width: 300px; 
-        background: rgba(0, 0, 0, 0.8); 
-        padding: 15px; 
-        margin: 50px auto; 
-        border-radius: 10px; 
-        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-        transition: box-shadow 0.3s ease-in-out;
+      
+      .member-name {
+        font-size: 14px;
       }
-      .friend { 
-        margin-bottom: 10px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center;
-      }
-      .avatar { 
-        width: 50px; 
-        height: 50px; 
-        border-radius: 50%; 
-        margin-right: 10px; 
-      }
-      .friend-info { 
-        text-align: left; 
-        font-size: 14px; 
-      }
-      footer { 
-        position: fixed; 
-        bottom: 10px; 
-        width: 100%; 
-        text-align: center; 
-        font-size: 12px; 
-        color: white; 
-        background-color: rgba(0, 0, 0, 0.5); 
-        padding: 5px 0; 
-      }
-      footer a { color: #fffb00; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h2>Участники группы</h2>
-      ${membersHtml}
+    }
+  </style>
+</head>
+<body>
+  <div class="members-container">
+    <div class="members-header">
+      <h1 class="members-title">Участники группы</h1>
     </div>
-    <footer>Developer INK</footer>
-  </body>
-  </html>`;
+    
+    <div class="members-list">
+      ${membersHtml || `
+        <div class="empty-state">
+          <i class="fas fa-user-slash"></i>
+          <p>Нет участников для отображения</p>
+        </div>
+      `}
+    </div>
+  </div>
+  
+  <footer>
+    Developer INK
+  </footer>
+</body>
+</html>`;
 }
 
 // Команда /участники
@@ -1041,74 +1573,171 @@ bot.onText(/\/друзья (\d+)/, async (msg, match) => {
 
     // Генерация полного HTML-документа
     const htmlContent = `<!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Список друзей ВКонтакте</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-          background-size: 400% 400%; 
-          animation: gradientAnimation 15s ease infinite; 
-          text-align: center; 
-          margin: 0; 
-          padding: 0; 
-          min-height: 100vh;
-          color: white; /* Белый текст */
-        }
-        @keyframes gradientAnimation { 
-          0% { background-position: 0% 50%; } 
-          50% { background-position: 100% 50%; } 
-          100% { background-position: 0% 50%; } 
-        }
-        .container { 
-          width: 300px; 
-          background: rgba(0, 0, 0, 0.8); 
-          padding: 15px; 
-          margin: 50px auto; 
-          border-radius: 10px; 
-          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-          transition: box-shadow 0.3s ease-in-out;
-        }
-        .friend { 
-          margin-bottom: 10px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        }
-        .avatar { 
-          width: 50px; 
-          height: 50px; 
-          border-radius: 50%; 
-          margin-right: 10px; 
-        }
-        .friend-info { 
-          text-align: left; 
-          font-size: 14px; 
-        }
-        footer { 
-          position: fixed; 
-          bottom: 10px; 
-          width: 100%; 
-          text-align: center; 
-          font-size: 12px; 
-          color: white; 
-          background-color: rgba(0, 0, 0, 0.5); 
-          padding: 5px 0; 
-        }
-        footer a { color: #fffb00; text-decoration: none; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h2>Друзья пользователя</h2>
-        ${friendsHtml}
-      </div>
-      <footer>Developer INK</footer>
-    </body>
-    </html>`;
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Список друзей ВКонтакте</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary: #5181B8;
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      --online: #4BB34B;
+      --offline: #99A2AD;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(81, 129, 184, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
+    }
+    
+    .friends-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    
+    .friends-header {
+      background: linear-gradient(135deg, var(--primary), #3a6ea5);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    
+    .friends-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin: 0;
+    }
+    
+    .friends-list {
+      padding: 15px 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .friend-card {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      background: rgba(81, 129, 184, 0.05);
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+    
+    .friend-card:hover {
+      background: rgba(81, 129, 184, 0.1);
+    }
+    
+    .friend-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 15px;
+      border: 2px solid #e1e3e6;
+    }
+    
+    .friend-info {
+      flex: 1;
+    }
+    
+    .friend-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: var(--text);
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 30px;
+      color: #656565;
+    }
+    
+    .empty-state i {
+      font-size: 40px;
+      margin-bottom: 15px;
+      color: #d3d3d3;
+    }
+    
+    @media (max-width: 480px) {
+      .friends-container {
+        max-width: 100%;
+      }
+      
+      .friend-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="friends-container">
+    <div class="friends-header">
+      <h1 class="friends-title">Друзья пользователя</h1>
+    </div>
+    
+    <div class="friends-list">
+      ${friendsHtml || `
+        <div class="empty-state">
+          <i class="fas fa-user-slash"></i>
+          <p>Нет друзей для отображения</p>
+        </div>
+      `}
+    </div>
+  </div>
+  
+  <footer>
+    Developer INK
+  </footer>
+</body>
+</html>`;
 
     // Сохранение HTML в файл
     const filePath = `friends_${userId}.html`;
@@ -1173,74 +1802,172 @@ bot.onText(/\/подписчики (\d+)/, async (msg, match) => {
 
     // Генерация полного HTML-документа
     const htmlContent = `<!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Список подписчиков ВКонтакте</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-          background-size: 400% 400%; 
-          animation: gradientAnimation 15s ease infinite; 
-          text-align: center; 
-          margin: 0; 
-          padding: 0; 
-          min-height: 100vh;
-          color: white; /* Белый текст */
-        }
-        @keyframes gradientAnimation { 
-          0% { background-position: 0% 50%; } 
-          50% { background-position: 100% 50%; } 
-          100% { background-position: 0% 50%; } 
-        }
-        .container { 
-          width: 300px; 
-          background: rgba(0, 0, 0, 0.8); 
-          padding: 15px; 
-          margin: 50px auto; 
-          border-radius: 10px; 
-          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-          transition: box-shadow 0.3s ease-in-out;
-        }
-        .follower { 
-          margin-bottom: 10px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        }
-        .avatar { 
-          width: 50px; 
-          height: 50px; 
-          border-radius: 50%; 
-          margin-right: 10px; 
-        }
-        .follower-info { 
-          text-align: left; 
-          font-size: 14px; 
-        }
-        footer { 
-          position: fixed; 
-          bottom: 10px; 
-          width: 100%; 
-          text-align: center; 
-          font-size: 12px; 
-          color: white; 
-          background-color: rgba(0, 0, 0, 0.5); 
-          padding: 5px 0; 
-        }
-        footer a { color: #fffb00; text-decoration: none; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h2>Подписчики пользователя</h2>
-        ${followersHtml}
-      </div>
-      <footer>Developer INK</footer>
-    </body>
-    </html>`;
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Список подписчиков ВКонтакте</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary: #5181B8;
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      --online: #4BB34B;
+      --offline: #99A2AD;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(81, 129, 184, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
+    }
+    
+    .followers-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    
+    .followers-header {
+      background: linear-gradient(135deg, var(--primary), #3a6ea5);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    
+    .followers-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin: 0;
+    }
+    
+    .followers-list {
+      padding: 15px 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .follower-card {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      background: rgba(81, 129, 184, 0.05);
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+    
+    .follower-card:hover {
+      background: rgba(81, 129, 184, 0.1);
+      transform: translateX(5px);
+    }
+    
+    .follower-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 15px;
+      border: 2px solid #e1e3e6;
+    }
+    
+    .follower-info {
+      flex: 1;
+    }
+    
+    .follower-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      color: var(--text);
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 30px;
+      color: #656565;
+    }
+    
+    .empty-state i {
+      font-size: 40px;
+      margin-bottom: 15px;
+      color: #d3d3d3;
+    }
+    
+    @media (max-width: 480px) {
+      .followers-container {
+        max-width: 100%;
+      }
+      
+      .follower-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="followers-container">
+    <div class="followers-header">
+      <h1 class="followers-title">Подписчики пользователя</h1>
+    </div>
+    
+    <div class="followers-list">
+      ${followersHtml || `
+        <div class="empty-state">
+          <i class="fas fa-user-slash"></i>
+          <p>Нет подписчиков для отображения</p>
+        </div>
+      `}
+    </div>
+  </div>
+  
+  <footer>
+    Developer INK
+  </footer>
+</body>
+</html>`;
 
     // Сохранение HTML в файл
     const filePath = `followers_${userId}.html`;
@@ -1305,70 +2032,189 @@ bot.onText(/\/подписки (\d+)/, async (msg, match) => {
 
     // Генерация полного HTML-документа
     const htmlContent = `<!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Список подписок пользователя ВКонтакте</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #00ff00, #0000ff, #8a00ff); 
-          background-size: 400% 400%; 
-          animation: gradientAnimation 15s ease infinite; 
-          text-align: center; 
-          margin: 0; 
-          padding: 0; 
-          min-height: 100vh;
-          color: white; /* Белый текст */
-        }
-        @keyframes gradientAnimation { 
-          0% { background-position: 0% 50%; } 
-          50% { background-position: 100% 50%; } 
-          100% { background-position: 0% 50%; } 
-        }
-        .container { 
-          width: 300px; 
-          background: rgba(0, 0, 0, 0.8); 
-          padding: 15px; 
-          margin: 50px auto; 
-          border-radius: 10px; 
-          box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.884);
-          transition: box-shadow 0.3s ease-in-out;
-        }
-        .subscription { 
-          margin-bottom: 10px; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center;
-        }
-        .avatar { 
-          width: 50px; 
-          height: 50px; 
-          border-radius: 50%; 
-          margin-right: 10px; 
-        }
-        footer { 
-          position: fixed; 
-          bottom: 10px; 
-          width: 100%; 
-          text-align: center; 
-          font-size: 12px; 
-          color: white; 
-          background-color: rgba(0, 0, 0, 0.5); 
-          padding: 5px 0; 
-        }
-        footer a { color: #fffb00; text-decoration: none; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h2>Подписки пользователя</h2>
-        ${subscriptionsHtml}
-      </div>
-      <footer>Developer INK</footer>
-    </body>
-    </html>`;
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Подписки пользователя ВКонтакте</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    :root {
+      --primary: #5181B8; /* Основной цвет VK */
+      --secondary: #FF5E3A;
+      --text: #2D3436;
+      --bg: #F5F7FA;
+      --card-bg: #FFFFFF;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      --verified: #4BB34B;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(81, 129, 184, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(255, 94, 58, 0.1) 0%, transparent 20%);
+    }
+    
+    .subscriptions-container {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    
+    .subscriptions-header {
+      background: linear-gradient(135deg, var(--primary), #3a6ea5);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+    
+    .subscriptions-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      margin: 0;
+    }
+    
+    .subscriptions-list {
+      padding: 15px 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    
+    .subscription-card {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      background: rgba(81, 129, 184, 0.05);
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+    
+    .subscription-card:hover {
+      background: rgba(81, 129, 184, 0.1);
+      transform: translateX(5px);
+    }
+    
+    .subscription-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px; /* Квадратные с закруглением для групп */
+      object-fit: cover;
+      margin-right: 15px;
+      border: 2px solid #e1e3e6;
+    }
+    
+    .subscription-info {
+      flex: 1;
+    }
+    
+    .subscription-name {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .verified-badge {
+      margin-left: 5px;
+      color: var(--verified);
+      font-size: 14px;
+    }
+    
+    .subscription-type {
+      font-size: 13px;
+      color: #656565;
+    }
+    
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: var(--text);
+      opacity: 0.7;
+      margin-top: auto;
+      padding: 20px 0;
+    }
+    
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+    
+    footer a:hover {
+      color: var(--secondary);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 30px;
+      color: #656565;
+    }
+    
+    .empty-state i {
+      font-size: 40px;
+      margin-bottom: 15px;
+      color: #d3d3d3;
+    }
+    
+    @media (max-width: 480px) {
+      .subscriptions-container {
+        max-width: 100%;
+      }
+      
+      .subscription-avatar {
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="subscriptions-container">
+    <div class="subscriptions-header">
+      <h1 class="subscriptions-title">Подписки пользователя</h1>
+    </div>
+    
+    <div class="subscriptions-list">
+      ${subscriptionsHtml || `
+        <div class="empty-state">
+          <i class="fas fa-bell-slash"></i>
+          <p>Нет подписок для отображения</p>
+        </div>
+      `}
+    </div>
+  </div>
+  
+  <footer>
+    Developer INK
+  </footer>
+</body>
+</html>`;
 
     // Сохранение HTML в файл
     const filePath = `subscriptions_${userId}.html`;
@@ -1386,67 +2232,58 @@ bot.onText(/\/подписки (\d+)/, async (msg, match) => {
 });
 
 //📌 команда photo
+// Регистрируем шрифты
+try {
+  registerFont('C:\\Windows\\Fonts\\arial.ttf', { family: 'Arial' });
+  registerFont('C:\\Windows\\Fonts\\arialbd.ttf', { family: 'Arial', weight: 'bold' });
+} catch (err) {
+  console.warn('Не удалось зарегистрировать шрифты, будут использованы стандартные');
+}
+
 bot.onText(/\/photo (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const vkId = match[1];
 
-  async function getVkUserId(input) {
-    try {
-      const vkUser = await vk.api.users.get({ user_ids: input });
-      if (vkUser && vkUser.length > 0) {
-        return vkUser[0].id;
-      }
-      return null;
-    } catch (error) {
-      console.error("Ошибка при получении ID пользователя VK:", error);
-      return null;
-    }
-  }
-
-  function getElapsedTime(lastSeenTime) {
-    const now = Date.now() / 1000;
+  // Функции для обработки данных
+  const getElapsedTime = (lastSeenTime) => {
+    if (!lastSeenTime) return "Неизвестно";
+    const now = Math.floor(Date.now() / 1000);
     const diff = now - lastSeenTime;
-
-    const minutes = Math.floor(diff / 60);
-    const hours = Math.floor(diff / 3600);
-    const days = Math.floor(diff / 86400);
-
-    if (days > 0) return `${days} дн. назад`;
-    if (hours > 0) return `${hours} ч. назад`;
-    if (minutes > 0) return `${minutes} мин. назад`;
+    const intervals = [
+      { label: 'год', seconds: 31536000 },
+      { label: 'мес', seconds: 2592000 },
+      { label: 'дн', seconds: 86400 },
+      { label: 'ч', seconds: 3600 },
+      { label: 'мин', seconds: 60 }
+    ];
+    for (const interval of intervals) {
+      const count = Math.floor(diff / interval.seconds);
+      if (count >= 1) return `${count} ${interval.label}. назад`;
+    }
     return "Только что";
-  }
+  };
 
-  function getPlatformName(platformId) {
+  const getPlatformName = (platformId) => {
     const platforms = {
-      1: "Мобильная версия",
-      2: "iPhone",
-      3: "iPad",
-      4: "Android",
-      5: "Windows Phone",
-      6: "ПК",
-      7: "VK Mobile"
+      1: "Мобильная версия", 2: "iPhone", 3: "iPad", 
+      4: "Android", 5: "Windows Phone", 6: "ПК", 
+      7: "VK Mobile", 8: "VK для Windows"
     };
     return platforms[platformId] || "Неизвестно";
-  }
+  };
 
   try {
-    const userId = await getVkUserId(vkId);
-    if (!userId) {
-      return bot.sendMessage(chatId, "❌ Не удалось найти профиль.");
-    }
-
-    const profile = await vk.api.users.get({
-      user_ids: userId,
-      fields:
-        "photo_max_orig,last_seen,counters,followers_count,city,verified,status,site,sex,relation,bdate,has_mobile,is_closed,is_premium,wall_comments,blacklisted",
+    const [user] = await vk.api.users.get({
+      user_ids: vkId,
+      fields: 'photo_max_orig,last_seen,counters,city,verified,status,site,sex,' +
+              'relation,bdate,has_mobile,is_closed,wall_comments,blacklisted'
     });
 
-    if (!profile.length) {
-      return bot.sendMessage(chatId, "❌ Не удалось получить данные.");
+    if (!user) {
+      return bot.sendMessage(chatId, "❌ Профиль не найден");
     }
 
-    const user = profile[0];
+    // Получаем все данные
     const avatarUrl = user.photo_max_orig;
     const lastSeenTime = user.last_seen ? getElapsedTime(user.last_seen.time) : "Неизвестно";
     const friendsCount = user.counters?.friends || 0;
@@ -1469,78 +2306,116 @@ bot.onText(/\/photo (.+)/, async (msg, match) => {
     const giftsCount = user.counters?.gifts || 0;
     const wallPostsCount = user.counters?.posts || 0;
 
-    const canvas = createCanvas(600, 750); // Увеличена высота
-    const ctx = canvas.getContext("2d");
+    // Создаем изображение
+    const canvasWidth = 1000;
+    const canvasHeight = 1500;
+    const canvas = createCanvas(canvasWidth, canvasHeight);
+    const ctx = canvas.getContext('2d');
 
-    // Заливка фона
-    ctx.fillStyle = "#282c34";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Фон
+    const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+    gradient.addColorStop(0, '#1e3c72');
+    gradient.addColorStop(1, '#2a5298');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Загружаем аватарку
-    const avatar = await loadImage(avatarUrl);
-    ctx.drawImage(avatar, 20, 20, 120, 120);
+    // Аватар
+    try {
+      const avatar = await loadImage(avatarUrl);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(150, 150, 120, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(avatar, 30, 30, 240, 240);
+      ctx.restore();
+      
+      // Рамка
+      ctx.beginPath();
+      ctx.arc(150, 150, 120, 0, Math.PI * 2);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    } catch (e) {
+      console.error('Ошибка загрузки аватарки:', e);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(150, 150, 120, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // Имя пользователя
-    ctx.fillStyle = "white";
-    ctx.font = "bold 24px Arial";
-    ctx.fillText(`${user.first_name} ${user.last_name}`, 160, 50);
+    // Текст
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 42px Arial';
+    ctx.fillText(`${user.first_name} ${user.last_name}`, 350, 150);
 
-    // Данные профиля
-    ctx.font = "18px Arial";
-    let y = 90;
-    const lineSpacing = 30;
+    // Функция для добавления текста
+    let yPos = 220;
+    const addTextLine = (label, value, icon = '') => {
+      ctx.font = 'bold 28px Arial';
+      ctx.fillText(`${icon} ${label}:`, 350, yPos);
+      ctx.font = '28px Arial';
+      ctx.fillText(value, 650, yPos);
+      yPos += 40;
+    };
 
-    const userData = [
-      `🏙 Город: ${city}`,
-      `🔹 Верифицирован: ${verified}`,
-      `⏳ Последний вход: ${lastSeenTime}`,
-      `📱 Устройство: ${device}`,
-      `🏷 Статус: ${status}`,
-      `🔵 Онлайн: ${online}`,
-      `👥 Пол: ${sex}`,
-      `🎂 Дата рождения: ${bdate}`,
-      `📱 Привязан телефон: ${hasMobile}`,
-      `🔑 Подтверждение входа: ${hasMobile}`,
-      `📧 Привязана почта: ${hasMobile}`,
-      `🚫 Черный список: ${blacklisted}`,
-      `🔗 Сайт: ${site}`,
-      `🔒 Приватность профиля: ${isClosed}`,
-      `💬 Комментарии на стене: ${wallComments}`,
-      `❤️ Отношения: ${relation}`,
-      `🎥 Видео: ${videosCount}`,
-      `📸 Фотографии: ${photosCount}`,
-      `🎁 Подарки: ${giftsCount}`,
-      `📝 Записи на стене: ${wallPostsCount}`,
-      `👫 Друзья: ${friendsCount}`,
-      `👥 Подписчики: ${followersCount}`,
-    ];
+    // Основная информация
+    addTextLine('Город', city, '🏙');
+    addTextLine('Статус', status, '🏷');
+    addTextLine('Онлайн', online, '🔵');
+    addTextLine('Последний вход', lastSeenTime, '⏱');
+    addTextLine('Устройство', device, '📱');
+    addTextLine('Пол', sex, '👤');
+    addTextLine('Дата рождения', bdate, '🎂');
+    addTextLine('Телефон', hasMobile, '📞');
+    addTextLine('Верификация', verified, '✅');
+    addTextLine('Профиль', isClosed, '🔐');
+    addTextLine('Комментарии', wallComments, '💬');
+    addTextLine('В ЧС', blacklisted, '🚫');
+    addTextLine('Сайт', site, '🌐');
+    addTextLine('Отношения', relation, '💑');
 
-    userData.forEach((text) => {
-      ctx.fillText(text, 160, y);
-      y += lineSpacing;
-    });
+    // Статистика
+    yPos += 20;
+    ctx.font = 'bold 32px Arial';
+    ctx.fillText('📊 Статистика:', 350, yPos);
+    yPos += 40;
 
-    // Добавляем надпись "Developer by INK" внизу
-    ctx.fillStyle = "gray";
-    ctx.font = "italic 16px Arial";
-    ctx.fillText("Developer by INK", canvas.width - 180, canvas.height - 20);
+    addTextLine('Друзья', friendsCount, '👫');
+    addTextLine('Подписчики', followersCount, '👥');
+    addTextLine('Фотографии', photosCount, '📸');
+    addTextLine('Видео', videosCount, '🎥');
+    addTextLine('Подарки', giftsCount, '🎁');
+    addTextLine('Записи', wallPostsCount, '📝');
 
-    // Сохранение изображения
-    const filePath = path.join(__dirname, `profile_${user.id}.png`);
-    const out = fs.createWriteStream(filePath);
+    // Добавляем подпись "Developer by INK" внизу изображения
+   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; // Полупрозрачный белый
+   ctx.font = 'italic 24px Arial';
+   const signatureText = 'Developer by INK';
+   const textWidth = ctx.measureText(signatureText).width;
+   ctx.fillText(signatureText, canvasWidth - textWidth - 40, canvasHeight - 30);
+
+    // Сохраняем и отправляем изображение
+    const tempFile = path.join(os.tmpdir(), `vk_profile_${Date.now()}.png`);
+    const out = fs.createWriteStream(tempFile);
     const stream = canvas.createPNGStream();
-    stream.pipe(out);
 
-    out.on("finish", () => {
-      bot.sendPhoto(chatId, filePath, {
-        caption: `📜 Информация о пользователе [${user.first_name} ${user.last_name}](https://vk.com/id${userId})`,
-        parse_mode: "Markdown",
-      }).then(() => fs.unlinkSync(filePath));
+    await new Promise((resolve, reject) => {
+      stream.pipe(out);
+      out.on('finish', resolve);
+      out.on('error', reject);
     });
+
+    await bot.sendPhoto(chatId, tempFile, {
+      caption: `📋 Профиль ${user.first_name} ${user.last_name}`,
+      parse_mode: 'Markdown'
+    });
+
+    fs.unlink(tempFile, () => {});
 
   } catch (error) {
-    console.error("Ошибка:", error);
-    bot.sendMessage(chatId, "❌ Ошибка при получении данных.");
+    console.error('Ошибка:', error);
+    await bot.sendMessage(chatId, '❌ Ошибка при создании профиля');
   }
 });
 
@@ -2121,49 +2996,126 @@ bot.onText(/\/post (\d+)/, async (msg, match) => {
 //📌 команда update
 bot.onText(/\/update/, async (msg) => {
   const chatId = msg.chat.id;
+  
+  try {
+    // Параметры обновления
+    const version = "2.0";
+    const updateTitle = "VK Шпион v" + version;
+    const updateFeatures = [
+      "• Полный редизайн HTML-шаблонов",
+      "• Оптимизация работы с API VK",
+      "• Улучшенная система кэширования",
+      "• Исправление мелких ошибок",
+      "• Добавлена поддержка новых полей профиля"
+    ];
 
-  // Создаем холст
-  const canvas = createCanvas(600, 400);
-  const ctx = canvas.getContext("2d");
+    // Создаем холст с увеличенными размерами
+    const canvasWidth = 800;
+    const canvasHeight = 600;
+    const canvas = createCanvas(canvasWidth, canvasHeight);
+    const ctx = canvas.getContext("2d");
 
-  // Задний фон
-  ctx.fillStyle = "#282c34";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Градиентный фон
+    const gradient = ctx.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+    gradient.addColorStop(0, "#1e3c72");
+    gradient.addColorStop(1, "#2a5298");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-  // Заголовок 
-  ctx.fillStyle = "white";
-  ctx.font = "bold 30px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("VK Шпион v1.9.2", canvas.width / 2, 80);
+    // Заголовок с тенью
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 5;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 42px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(updateTitle, canvasWidth / 2, 100);
+    ctx.shadowColor = "transparent"; // Сбрасываем тень
 
-  // Блок описания обновления
-  ctx.fillStyle = "#444";
-  ctx.fillRect(50, 120, 500, 180);
+    // Блок с информацией
+    const blockWidth = 700;
+    const blockHeight = 350;
+    const blockX = (canvasWidth - blockWidth) / 2;
+    const blockY = 150;
+    
+    // Скругленный прямоугольник для блока
+    ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.lineWidth = 2;
+    roundedRect(ctx, blockX, blockY, blockWidth, blockHeight, 20);
+    ctx.fill();
+    ctx.stroke();
 
-  // Текст описания обновления
-  ctx.fillStyle = "white";
-  ctx.font = "18px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("Улучшение html, мелкие улучшения", canvas.width / 2, 160);
+    // Иконка обновления
+    ctx.font = "72px Arial";
+    ctx.fillStyle = "#4fc3f7";
+    ctx.fillText("🆕", canvasWidth / 2 - 300, 180);
 
-  // Подпись разработчика
-  ctx.fillStyle = "#999";
-  ctx.font = "16px Arial";
-  ctx.fillText("Developer by INK", canvas.width / 2, 350);
+    // Текст обновления
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText("Что нового в этой версии:", canvasWidth / 2, 200);
 
-  // Сохранение изображения
-  const filePath = path.join(__dirname, "update_info.png");
-  const out = fs.createWriteStream(filePath);
-  const stream = canvas.createPNGStream();
-  stream.pipe(out);
+    // Список изменений
+    ctx.font = "24px Arial";
+    let yPos = 250;
+    const lineHeight = 40;
+    
+    updateFeatures.forEach(feature => {
+      ctx.fillText(feature, canvasWidth / 2, yPos);
+      yPos += lineHeight;
+    });
 
-  out.on("finish", () => {
-    bot.sendPhoto(chatId, filePath, {
-      caption: "🆕 Обновление VK Шпион v1.9.2",
-    }).then(() => fs.unlinkSync(filePath));
-  });
+    // Подпись разработчика
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.font = "italic 20px Arial";
+    ctx.fillText("Developer by INK", canvasWidth / 2, canvasHeight - 50);
+
+    // Версия в углу
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.font = "16px Arial";
+    ctx.textAlign = "right";
+    ctx.fillText("v" + version, canvasWidth - 30, canvasHeight - 30);
+
+    // Сохранение временного файла
+    const tempFile = path.join(os.tmpdir(), `update_${version}.png`);
+    const out = fs.createWriteStream(tempFile);
+    const stream = canvas.createPNGStream();
+
+    await new Promise((resolve, reject) => {
+      stream.pipe(out);
+      out.on('finish', resolve);
+      out.on('error', reject);
+    });
+
+    // Отправка изображения
+    await bot.sendPhoto(chatId, tempFile, {
+      caption: `🆕 Обновление ${updateTitle}\n` 
+    });
+
+    // Удаление временного файла
+    fs.unlink(tempFile, () => {});
+
+  } catch (error) {
+    console.error("Ошибка при создании изображения обновления:", error);
+    await bot.sendMessage(chatId, "❌ Произошла ошибка при создании информации об обновлении");
+  }
 });
 
+// Вспомогательная функция для скругленных прямоугольников
+function roundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
 
 // Запуск периодической проверки изменений каждую 1 минуту
 setInterval(periodicTracking, 60 * 1000); // 60 секунд
