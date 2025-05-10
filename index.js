@@ -22,7 +22,7 @@ const db = new sqlite3.Database("tracking.db", (err) => {
 
 // Конфигурация
 const config = {
-  version: '2.0',
+  version: '2.1',
   author: 'INK'
 };
 
@@ -68,7 +68,7 @@ bot.onText(/\/start/, (msg) => {
 const knownCommands = [
   '/start', '/help', '/track', '/profile', '/gprofile', '/info',
   '/ginfo', '/photo', '/друзья', '/подписчики', '/подписки',
-  '/участники', '/id', '/gid', '/statistic', '/like', '/post',
+  '/участники', '/id', '/gid', '/statistic', '/like', '/post', '/общение',
   '/settings', '/update'
 ];
 
@@ -2993,20 +2993,86 @@ bot.onText(/\/post (\d+)/, async (msg, match) => {
   }
 });
 
+//📌 команда общение
+bot.onText(/\/общение (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const userId = match[1].trim();
+
+    if (!userId || isNaN(userId)) {
+        return bot.sendMessage(chatId, '⚠️ Неверный ID пользователя. Укажите числовой ID.');
+    }
+
+    try {
+        const [targetUser] = await vk.api.users.get({ 
+            user_ids: userId, 
+            fields: ['last_seen'] 
+        });
+
+        if (!targetUser?.last_seen) {
+            return bot.sendMessage(chatId, '❌ Не удалось получить данные пользователя или он скрыл время последнего посещения.');
+        }
+
+        const targetLastSeen = targetUser.last_seen.time;
+        const targetExitTime = new Date(targetLastSeen * 1000);
+
+        // Получаем друзей пользователя
+        const { items: friends } = await vk.api.friends.get({ 
+            user_id: userId, 
+            fields: ['last_seen', 'first_name', 'last_name'] 
+        });
+
+        if (!friends || friends.length === 0) {
+            return bot.sendMessage(chatId, 'У пользователя нет друзей или они скрыты.');
+        }
+
+        // Фильтруем друзей, которые были онлайн ±5 минут от времени выхода
+        const possibleFriends = friends.filter(friend => {
+            if (!friend.last_seen) return false;
+
+            const friendLastSeen = friend.last_seen.time;
+            const diffMinutes = Math.abs((targetLastSeen - friendLastSeen) / 60);
+
+            return diffMinutes <= 5;
+        });
+
+        if (possibleFriends.length === 0) {
+            return bot.sendMessage(chatId, 'Нет друзей, которые были онлайн в пределах 5 минут от времени выхода пользователя.');
+        }
+
+        // Формируем сообщение
+        let message = `👥 Возможные друзья, с которыми общался пользователь [id${userId}|${targetUser.first_name} ${targetUser.last_name}]:\n\n`;
+        message += `🕒 Время выхода: ${targetExitTime.toLocaleString('ru-RU')}\n\n`;
+
+        possibleFriends.forEach(friend => {
+            const friendLastSeen = friend.last_seen.time;
+            const diffMinutes = Math.abs((targetLastSeen - friendLastSeen) / 60);
+            let emoji;
+
+            if (diffMinutes >= 0 && diffMinutes <= 1) emoji = '🟢'; // 0-1 мин
+            else if (diffMinutes <= 3) emoji = '🟡'; // 2-3 мин
+            else emoji = '🔴'; // 4-5 мин
+
+            const friendExitTime = new Date(friendLastSeen * 1000);
+            message += `${emoji} [id${friend.id}|${friend.first_name} ${friend.last_name}] — ${friendExitTime.toLocaleString('ru-RU')}\n`;
+        });
+
+        bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error(error);
+        bot.sendMessage(chatId, '⚠️ Произошла ошибка при обработке запроса.');
+    }
+});
+
 //📌 команда update
 bot.onText(/\/update/, async (msg) => {
   const chatId = msg.chat.id;
   
   try {
     // Параметры обновления
-    const version = "2.0";
+    const version = "2.1";
     const updateTitle = "VK Шпион v" + version;
     const updateFeatures = [
-      "• Полный редизайн HTML-шаблонов",
-      "• Оптимизация работы с API VK",
-      "• Улучшенная система кэширования",
-      "• Исправление мелких ошибок",
-      "• Добавлена поддержка новых полей профиля"
+      "• Команда /общение"
     ];
 
     // Создаем холст с увеличенными размерами
